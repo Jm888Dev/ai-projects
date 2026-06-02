@@ -14,13 +14,22 @@ from dotenv import load_dotenv         # For loading the .env API key file
 # This is the standing brief — who Claude is and what rules it follows
 # Import both personas — analyst for structured output, translator for plain English
 from prompts.analyst_persona import STOCK_ANALYST_SYSTEM_PROMPT, TRANSLATOR_SYSTEM_PROMPT
+from config import (
+        ANALYST_MODEL,          # Sonnet - used in analyst call
+        TRANSLATOR_MODEL,       # Haiku - used in translator call
+        ANALYST_MAX_TOKENS,     # Token budget for analyst response
+        TRANSLATOR_MAX_TOKENS,  # Token budget for translator response
+        ANALYST_TEMPERATURE,    # Low - keeps analysis factual
+        TRANSLATOR_TEMPERATURE, # Slightly higher - variance is better for natural language
+        TICKERS,                # Full tracking universee
+)
 
 # Load the API key from the .env file into environment variables
 load_dotenv()
 
 # ── CONFIGURATION ─────────────────────────────────────────────────────────────
 # All tickers in one place — easy to add or remove without touching logic below
-TICKERS = ["NVDA", "AVGO", "LITE", "TSM", "QQQ", "SMH", "G3B.SI", "^VIX"]
+tickers = TICKERS   # Imported from config.py
 
 # ── STEP 1: FETCH PRICES ──────────────────────────────────────────────────────
 def fetch_prices(tickers):
@@ -94,8 +103,10 @@ def get_claude_analysis(price_text):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",   # Haiku — fast and cheap for daily runs
-        max_tokens=1000,
+        model=ANALYST_MODEL,   # Sonnet - used in analyst call
+        max_tokens=ANALYST_MAX_TOKENS,
+        temperature=ANALYST_TEMPERATURE,
+
         system=STOCK_ANALYST_SYSTEM_PROMPT,  # Standing brief — the analyst persona
         messages=[
             {
@@ -126,8 +137,10 @@ def get_plain_english_explanation(analysis_json):
     analysis_text = json.dumps(analysis_json, indent=2)
 
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1200,
+        model=TRANSLATOR_MODEL,
+        max_tokens=TRANSLATOR_MAX_TOKENS,
+        temperature=TRANSLATOR_TEMPERATURE,
+
         system=TRANSLATOR_SYSTEM_PROMPT,     # The educator persona
         messages=[
             {
