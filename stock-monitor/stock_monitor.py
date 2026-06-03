@@ -162,7 +162,7 @@ def get_plain_english_explanation(analysis_json):
     return response.content[0].text, {
         "input": response.usage.input_tokens,
         "output": response.usage.output_tokens
-    }
+}
 
 # ── STEP 4: PARSE CLAUDE'S JSON RESPONSE ─────────────────────────────────────
 def parse_claude_response(raw_text):
