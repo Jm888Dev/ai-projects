@@ -10,6 +10,13 @@ import json               # For parsing Claude's JSON response
 import os                 # For reading environment variables
 from datetime import datetime          # For timestamping the output
 from dotenv import load_dotenv         # For loading the .env API key file
+import sys
+from pathlib import Path
+
+# Add the ai-projects root to Python's path dynamically.
+# This makes shared/ importable regardless of where the project lives on disk.
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from shared.utils import extract_json  # Shared utility — same cleaner for both projects
 
 # Import the analyst persona we wrote in prompts/analyst_persona.py
 # This is the standing brief — who Claude is and what rules it follows
