@@ -3,6 +3,7 @@
 # What changed from v2: portfolio context moved into a dedicated system prompt.
 # The user message now contains only live price data — clean separation of concerns.
 
+import time   # measures elapsed duration per pipeline stage
 import anthropic          # Claude API client
 import yfinance as yf     # Yahoo Finance data wrapper
 import json               # For parsing Claude's JSON response
@@ -26,10 +27,6 @@ from config import (
 
 # Load the API key from the .env file into environment variables
 load_dotenv()
-
-# ── CONFIGURATION ─────────────────────────────────────────────────────────────
-# All tickers in one place — easy to add or remove without touching logic below
-tickers = TICKERS   # Imported from config.py
 
 # ── STEP 1: FETCH PRICES ──────────────────────────────────────────────────────
 def fetch_prices(tickers):
@@ -118,7 +115,11 @@ def get_claude_analysis(price_text):
     )
 
     # Extract the text from Claude's response object
-    return response.content[0].text
+    # Return text alongside token usage and duration — caller builds run summary
+    return response.content[0].text, {
+        "input": response.usage.input_tokens,
+        "output": response.usage.output_tokens
+}
 
 
 # ── STEP 3B: TRANSLATE ANALYSIS INTO PLAIN ENGLISH ───────────────────────────
@@ -150,7 +151,11 @@ def get_plain_english_explanation(analysis_json):
         ]
     )
 
-    return response.content[0].text
+    # Return text and token usage — caller accumulates for run summary
+    return response.content[0].text, {
+        "input": response.usage.input_tokens,
+        "output": response.usage.output_tokens
+    }
 
 # ── STEP 4: PARSE CLAUDE'S JSON RESPONSE ─────────────────────────────────────
 def parse_claude_response(raw_text):
@@ -218,7 +223,7 @@ def display_analysis(prices, analysis):
     print("\n" + "="*60 + "\n")
 
 # ── MAIN — wires all steps together ───────────────────────────────────────────
-# ── MAIN — wires all steps together ───────────────────────────────────────────
+
 def main():
     print("Fetching prices...")
     prices = fetch_prices(TICKERS)
@@ -234,7 +239,9 @@ def main():
 
     # First Claude call — analyst returns structured JSON
     print("Sending to analyst...")
-    raw_response = get_claude_analysis(price_text)
+    analyst_start = time.time()
+    raw_response, analyst_tokens = get_claude_analysis(price_text)
+    analyst_duration = round(time.time() - analyst_start, 1)
     analysis = parse_claude_response(raw_response)
 
     # Display the structured analyst output as before
@@ -244,7 +251,9 @@ def main():
     # Only runs if the first call succeeded and returned valid data
     if analysis:
         print("Translating for plain English explanation...\n")
-        explanation = get_plain_english_explanation(analysis)
+        translator_start = time.time()
+        explanation, translator_tokens = get_plain_english_explanation(analysis)
+        translator_duration = round(time.time() - translator_start, 1)
 
         # Print the translator's output as a clearly separate section
         print("="*60)
@@ -252,6 +261,16 @@ def main():
         print("="*60)
         print(explanation)
         print("="*60 + "\n")
+        # ── Run Summary ───────────────────────────────────────────────────
+        # Tokens and duration logged at end of every run.
+        total_input = analyst_tokens["input"] + translator_tokens["input"]
+        total_output = analyst_tokens["output"] + translator_tokens["output"]
+        total_duration = round(analyst_duration + translator_duration, 1)
+
+        print("\n── Run Summary ──")
+        print(f"  Analyst    — input: {analyst_tokens['input']:,}  output: {analyst_tokens['output']:,}  duration: {analyst_duration}s")
+        print(f"  Translator — input: {translator_tokens['input']:,}  output: {translator_tokens['output']:,}  duration: {translator_duration}s")
+        print(f"  TOTAL      — input: {total_input:,}  output: {total_output:,}  duration: {total_duration}s")
 
 # Standard Python entry point — only runs main() if this file is executed directly
 if __name__ == "__main__":
