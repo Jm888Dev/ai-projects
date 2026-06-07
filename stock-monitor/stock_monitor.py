@@ -110,8 +110,7 @@ def get_claude_analysis(price_text, run_id):
         fallback_model=config.FALLBACK_MODEL,
         client=client,
     )
-
-    duration = round(time.time() - start, 1)
+    print(f"[DEBUG] usage: {usage}")
 
     # Write audit row — one row per call_llm() invocation
     database.write_llm_call(
