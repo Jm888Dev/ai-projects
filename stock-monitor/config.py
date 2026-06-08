@@ -42,3 +42,16 @@ TICKERS = {
 # SQLite database file stored in the project folder.
 # All price fetches, analyst outputs, signals, and audit rows written here.
 DB_PATH = "prices.db"
+
+# --- MODEL PRICING ---
+# Per-million-token pricing in USD. Read by database.compute_call_cost()
+# at the moment each llm_calls row is written.
+# Pricing reference: Anthropic public rates, June 2026.
+# Update here when prices change or new models are added.
+# Format: model_id -> {"input": $/M input tokens, "output": $/M output tokens}
+MODEL_PRICING = {
+    "claude-sonnet-4-5":          {"input": 3.00, "output": 15.00},
+    "claude-haiku-4-5-20251001":  {"input": 1.00, "output": 5.00},
+    # Opus added in advance — wired up if/when call_llm() routes to it
+    "claude-opus-4-8":            {"input": 5.00, "output": 25.00},
+}
