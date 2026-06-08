@@ -110,7 +110,7 @@ def get_claude_analysis(price_text, run_id):
         fallback_model=config.FALLBACK_MODEL,
         client=client,
     )
-    print(f"[DEBUG] usage: {usage}")
+    duration = round(time.time() - start, 1)
 
     # Write audit row — one row per call_llm() invocation
     database.write_llm_call(
@@ -229,7 +229,8 @@ def main():
     # Generate run_id once — passed to every write function so all rows
     # for this run are linked across prices, analysis, signals, llm_calls
     run_id = database.generate_run_id()
-    database.start_run(run_id)
+    data_mode = "live" if config.USE_LIVE_DATA else "fixture"
+    database.start_run(run_id, data_mode=data_mode)
 
     # Track stats across the run — passed to finish_run() at the end
     stats = {
@@ -330,14 +331,40 @@ def main():
             stats["analyst_duration_secs"] + stats["translator_duration_secs"], 1
         )
 
-        print("\n── Run Summary ──")
+        # Compute total run cost from all llm_calls rows for this run
+        total_cost = sum([
+            database.compute_call_cost(
+                config.ANALYST_MODEL,
+                stats["analyst_input_tokens"],
+                stats["analyst_output_tokens"]
+            ),
+            database.compute_call_cost(
+                config.TRANSLATOR_MODEL,
+                stats["translator_input_tokens"],
+                stats["translator_output_tokens"]
+            ),
+        ])
+        stats["total_cost_usd"] = total_cost
+
+        # Fetch estimated balance — None if no topup has been logged yet
+        balance = database.get_estimated_balance()
+
+        print("\n── Run Summary ──────────────────────────────────")
         print(f"  Run ID     — {run_id}")
-        print(f"  Analyst    — input: {stats['analyst_input_tokens']:,}  output: {stats['analyst_output_tokens']:,}  duration: {stats['analyst_duration_secs']}s")
-        print(f"  Translator — input: {stats['translator_input_tokens']:,}  output: {stats['translator_output_tokens']:,}  duration: {stats['translator_duration_secs']}s")
-        print(f"  TOTAL      — input: {total_input:,}  output: {total_output:,}  duration: {total_duration}s")
+        print(f"  Data mode  — {data_mode}")
+        print(f"  Analyst    — in: {stats['analyst_input_tokens']:,}  out: {stats['analyst_output_tokens']:,}  {stats['analyst_duration_secs']}s")
+        print(f"  Translator — in: {stats['translator_input_tokens']:,}  out: {stats['translator_output_tokens']:,}  {stats['translator_duration_secs']}s")
+        print(f"  TOTAL      — in: {total_input:,}  out: {total_output:,}  {total_duration}s")
+        print(f"  Run cost   — ${total_cost:.4f}")
         print(f"  Tickers    — {stats['tickers_succeeded']} succeeded / {stats['tickers_failed']} failed")
         if stats["fallback_used"]:
             print(f"  [WARN] Fallback model was used this run.")
+        if balance:
+            print(f"  Est. balance remaining — ${balance['estimated_remaining']:.2f}")
+            print(f"  Total spent to date    — ${balance['total_spent']:.4f}")
+        else:
+            print(f"  Balance — log your first topup with database.log_balance_topup(amount)")
+        print("─" * 50)
 
         # Close the run log — status complete
         database.finish_run(run_id, status="complete", stats=stats)
