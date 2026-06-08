@@ -102,7 +102,8 @@ CREATE TABLE IF NOT EXISTS analysis (
     analysis_type   TEXT NOT NULL,
     ticker          TEXT,
     source          TEXT NOT NULL,
-    output          TEXT NOT NULL
+    output          TEXT NOT NULL,
+    truncated       INTEGER DEFAULT 0
 )
 """
 
@@ -186,7 +187,10 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     duration_secs   REAL,
     cost_usd        REAL DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'success',
-    error_message   TEXT
+    error_message   TEXT,
+    retried         INTEGER DEFAULT 0,
+    truncated       INTEGER DEFAULT 0,
+    retry_budget    INTEGER
 )
 """
 
@@ -598,7 +602,7 @@ def write_prices(run_id, price_data, capture_context="unclassified"):
 
 
 def write_analysis(run_id, output_text, analysis_type,
-                   ticker=None, source="stock_monitor"):
+                   ticker=None, source="stock_monitor", truncated=False):
     """
     Writes one row into the analysis table per persona or translator call.
     analysis_type identifies the source:
@@ -608,6 +612,9 @@ def write_analysis(run_id, output_text, analysis_type,
         Translator: translator_[section]
     ticker is None for portfolio-level calls (contrarian, meta_agent,
     translator) and set for per-ticker Stage 1 and Stage 2 calls.
+    truncated=True flags that output was cut at token limit — signal
+    is still stored and passed forward, downstream agents are aware
+    via the TRUNCATION_FLAG appended to the text by call_llm().
     Returns the inserted row id — needed by write_sentences() to link back.
     """
     try:
@@ -615,8 +622,9 @@ def write_analysis(run_id, output_text, analysis_type,
             cursor = conn.execute(
                 """
                 INSERT INTO analysis
-                    (run_id, timestamp, analysis_type, ticker, source, output)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (run_id, timestamp, analysis_type, ticker,
+                     source, output, truncated)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id,
@@ -625,11 +633,13 @@ def write_analysis(run_id, output_text, analysis_type,
                     ticker,
                     source,
                     output_text,
+                    int(truncated),
                 ),
             )
             row_id = cursor.lastrowid
         print(f"[DB] Analysis written: {analysis_type}"
               + (f" [{ticker}]" if ticker else " [portfolio]")
+              + (f" [TRUNCATED]" if truncated else "")
               + f" for run {run_id}")
         return row_id
     except Exception as e:
@@ -704,16 +714,17 @@ def write_persona_call(run_id, persona, ticker, direction=None,
 
 def write_llm_call(run_id, call_type, model_requested, model_used,
                    fallback_used, input_tokens, output_tokens,
-                   duration_secs, status="success", error_message=None):
+                   duration_secs, status="success", error_message=None,
+                   retried=False, truncated=False, retry_budget=None):
     """
     Writes one audit row per call_llm() invocation.
-    cost_usd is computed at insert time from config.MODEL_PRICING
-    and stored permanently — historical cost data stays accurate
-    even if pricing changes later.
-    model_requested vs model_used captures fallback events.
-    call_type identifies the stage and persona:
-        stage1_bull, stage1_bear, stage1_black_swan, stage1_pragmatist,
-        stage2_contrarian, stage3_meta_agent, translator
+    cost_usd computed at insert from config.MODEL_PRICING — stored
+    permanently so historical cost data stays accurate even if
+    pricing changes later.
+    retried: 1 if a retry was triggered due to truncation.
+    truncated: 1 if output was still truncated after retry —
+               signal is passed through with TRUNCATION_FLAG appended.
+    retry_budget: token budget used on retry, NULL if no retry.
     """
     try:
         cost_usd = compute_call_cost(model_used, input_tokens, output_tokens)
@@ -724,14 +735,16 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                 INSERT INTO llm_calls
                     (run_id, timestamp, call_type, model_requested, model_used,
                      fallback_used, input_tokens, output_tokens, duration_secs,
-                     cost_usd, status, error_message)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     cost_usd, status, error_message,
+                     retried, truncated, retry_budget)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id, datetime.now().isoformat(), call_type,
                     model_requested, model_used, int(fallback_used),
                     input_tokens, output_tokens, duration_secs,
                     cost_usd, status, error_message,
+                    int(retried), int(truncated), retry_budget,
                 ),
             )
     except Exception as e:
