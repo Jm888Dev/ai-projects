@@ -4,14 +4,14 @@
   "_created": "2026-06-08",
 
   "prices": [
-    {"ticker": "NVDA",   "instrument_type": "equity", "price": 131.38, "prev_close": 130.03, "pct_change": 1.04},
-    {"ticker": "AVGO",   "instrument_type": "equity", "price": 236.42, "prev_close": 233.54, "pct_change": 1.23},
-    {"ticker": "LITE",   "instrument_type": "equity", "price": 85.67,  "prev_close": 84.51,  "pct_change": 1.37},
-    {"ticker": "TSM",    "instrument_type": "equity", "price": 176.23, "prev_close": 174.88, "pct_change": 0.77},
-    {"ticker": "QQQ",    "instrument_type": "etf",    "price": 484.12, "prev_close": 481.33, "pct_change": 0.58},
-    {"ticker": "SMH",    "instrument_type": "etf",    "price": 224.87, "prev_close": 222.91, "pct_change": 0.88},
-    {"ticker": "G3B.SI", "instrument_type": "etf",    "price": 3.52,   "prev_close": 3.51,   "pct_change": 0.28},
-    {"ticker": "^VIX",   "instrument_type": "index",  "price": 14.83,  "prev_close": 15.21,  "pct_change": -2.50}
+    {"ticker": "NVDA",   "instrument_type": "equity", "price": 221.38, "prev_close": 230.23, "pct_change": 1.04},
+    {"ticker": "AVGO",   "instrument_type": "equity", "price": 383.42, "prev_close": 387.25, "pct_change": 1},
+    {"ticker": "LITE",   "instrument_type": "equity", "price": 860.67,  "prev_close": 869.27,  "pct_change": 1},
+    {"ticker": "TSM",    "instrument_type": "equity", "price": 450.23, "prev_close": 454.73, "pct_change": 1},
+    {"ticker": "QQQ",    "instrument_type": "etf",    "price": 669.12, "prev_close": 675.81, "pct_change": 1},
+    {"ticker": "SMH",    "instrument_type": "etf",    "price": 509.87, "prev_close": 514.96, "pct_change": 1},
+    {"ticker": "G3B.SI", "instrument_type": "etf",    "price": 5.18,   "prev_close": 5.23,   "pct_change": 1},
+    {"ticker": "^VIX",   "instrument_type": "index",  "price": 14.83,  "prev_close": 14.97,  "pct_change": 1}
   ],
 
   "intelligence": {

@@ -8,32 +8,58 @@
 # Change this one line to switch modes — nothing else changes.
 USE_LIVE_DATA = False
 
-# ── SIX-AGENT MODEL ROUTING ────────────────────────────────
-# Stage 1: Bull, Bear, Black Swan, Pragmatist — extreme positions,
-#          small focused inputs, Haiku is fast and sufficient
-# Stage 2: Contrarian — reads all four Stage 1 outputs, needs
-#          Sonnet's synthesis depth
-# Stage 3: Meta-Agent — deterministic decision maker, Sonnet
-# Translator: plain English briefing, Haiku is fine
-# Fallback: used by call_llm() if primary model fails
-STAGE_1_MODEL    = "claude-haiku-4-5-20251001"
-STAGE_2_MODEL    = "claude-sonnet-4-6"
-STAGE_3_MODEL    = "claude-sonnet-4-6"
-TRANSLATOR_MODEL = "claude-haiku-4-5-20251001"
-FALLBACK_MODEL   = "claude-haiku-4-5-20251001"
+# ── DEV MODE ───────────────────────────────────────────────
+# True  = all agents run on Haiku — fast, cheap, for building
+#         and prompt development. Roughly $0.05-0.08 per run.
+# False = full production routing — Haiku Stage 1, Sonnet Stage 2+3
+#         Full reasoning quality. Roughly $0.50+ per run.
+#
+# Switch to False when:
+#   - Running on live data for real sessions
+#   - Tuning prompts against full-quality output
+#   - Day 30 demo
+# Switch to True when:
+#   - Building new pipeline features
+#   - Testing schema changes
+#   - Iterating on agent prompts
+#   - Any fixture run where output quality is not the focus
+DEV_MODE = True
 
-# Kept for backward compatibility with existing call_llm() calls
-# in stock_monitor.py — will be removed in this Day 10 refactor
-ANALYST_MODEL    = "claude-sonnet-4-6"
+# ── SIX-AGENT MODEL ROUTING ────────────────────────────────
+# Model constants — do not change these
+_HAIKU  = "claude-haiku-4-5-20251001"
+_SONNET = "claude-sonnet-4-6"
+_OPUS   = "claude-opus-4-8"
+
+# Stage routing — respects DEV_MODE
+# Stage 1: Bull, Bear, Black Swan, Pragmatist
+#   Always Haiku — extreme positions on focused inputs,
+#   Haiku is sufficient regardless of mode
+# Stage 2: Contrarian
+#   Sonnet in production — synthesis across four inputs needs depth
+#   Haiku in dev — acceptable for building and prompt iteration
+# Stage 3: Meta-Agent
+#   Sonnet in production — final portfolio decision, must be auditable
+#   Haiku in dev — acceptable for building and schema testing
+# Translator: always Haiku — plain English rewrite, no depth needed
+# Fallback: always Haiku — fast recovery on primary failure
+STAGE_1_MODEL    = _HAIKU
+STAGE_2_MODEL    = _HAIKU if DEV_MODE else _SONNET
+STAGE_3_MODEL    = _HAIKU if DEV_MODE else _SONNET
+TRANSLATOR_MODEL = _HAIKU
+FALLBACK_MODEL   = _HAIKU
+
+# Kept for backward compatibility — removed on next refactor pass
+ANALYST_MODEL = _SONNET
 
 # ── TOKEN BUDGETS ──────────────────────────────────────────
-# Stage 1 agents: tight — structured JSON, focused output
-# Stage 2/3: more room — synthesis across multiple inputs
-# Translator: concise plain English
-STAGE_1_MAX_TOKENS    = 800
-STAGE_2_MAX_TOKENS    = 1200
-STAGE_3_MAX_TOKENS    = 1500
-TRANSLATOR_MAX_TOKENS = 1000
+# Raised after Day 10 first run — Black Swan, Pragmatist, and
+# Contrarian were consistently hitting the ceiling and triggering
+# retries. Higher budgets eliminate retries and reduce runtime.
+STAGE_1_MAX_TOKENS    = 1200   # was 800 — Black Swan and Pragmatist need room
+STAGE_2_MAX_TOKENS    = 2000   # was 1200 — Contrarian reads four inputs
+STAGE_3_MAX_TOKENS    = 4000   # was 1500 — Meta-Agent covers eight tickers
+TRANSLATOR_MAX_TOKENS = 1200   # was 1000 — slight increase for richer briefings
 
 # Kept for backward compatibility
 ANALYST_MAX_TOKENS = 1200

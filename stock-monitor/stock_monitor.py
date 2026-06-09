@@ -1,7 +1,10 @@
-# stock_monitor.py — v4
-# Day 8: call_llm() wrapper + SQLite storage
-# What changed from v3: TICKERS is now a dict with instrument types,
-# all Claude calls go through call_llm(), database writes added to main().
+# stock_monitor.py — v5
+# Day 10: Six-agent adversarial pipeline
+# What changed from v4: Single analyst replaced with Bull, Bear,
+# Black Swan, Pragmatist (Stage 1), Contrarian (Stage 2),
+# Meta-Agent (Stage 3). Translator updated to consume Meta-Agent output.
+# Data package builder introduced. Kill trigger checker added.
+# persona_calls and signals writes added.
 
 import time
 import os
@@ -14,132 +17,819 @@ import sys
 from pathlib import Path
 
 # Add ai-projects root to Python's path so shared/ is importable
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.utils import extract_json, call_llm
+# parent = stock-monitor/, parent.parent = ai-projects/
+_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(_ROOT))           # gives access to shared/
+sys.path.insert(0, str(_ROOT / "stock-monitor"))  # gives access to config, database
 
-from prompts.analyst_persona import STOCK_ANALYST_SYSTEM_PROMPT, TRANSLATOR_SYSTEM_PROMPT
+from shared.utils import extract_json, call_llm, update_market_history
+from shared.data_sources import get_current_prices, get_intelligence_context
+
+from prompts.analyst_persona import (
+    STOCK_BULL_SYSTEM_PROMPT,
+    STOCK_BEAR_SYSTEM_PROMPT,
+    STOCK_BLACK_SWAN_SYSTEM_PROMPT,
+    STOCK_PRAGMATIST_SYSTEM_PROMPT,
+    STOCK_CONTRARIAN_SYSTEM_PROMPT,
+    STOCK_META_AGENT_SYSTEM_PROMPT,
+    TRANSLATOR_SYSTEM_PROMPT,
+)
 import config
 import database
 
 load_dotenv()
 
 # Initialise the Anthropic client once at module level.
-# All call_llm() calls share this single client instance —
-# no need to re-initialise inside every function.
+# All call_llm() calls share this single client instance.
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
-# ── STEP 1: FETCH PRICES ──────────────────────────────────────────────────────
-def fetch_prices(tickers):
+# ─────────────────────────────────────────────────────────────
+# STEP 1 — KILL TRIGGER CHECKER
+# Runs at the top of every session before any agent call.
+# Queries the signals table for active unresolved kill triggers.
+# Returns a dict keyed by ticker — each value is a list of
+# active trigger dicts. Empty list means no active triggers.
+# The Meta-Agent receives this and must REDUCE or EXIT if
+# any trigger is active — it cannot ACCUMULATE or HOLD.
+# ─────────────────────────────────────────────────────────────
+def check_kill_triggers():
     """
-    Fetch current price and previous close for each ticker using yfinance.
-    tickers is now a dict: { "NVDA": "equity", "^VIX": "index", ... }
-    Returns a list of dicts — one per ticker — including instrument_type.
-    List format (not dict) makes it easier to pass directly to write_prices().
-    Skips tickers where price data is unavailable — one failure does not
-    crash the run.
+    Queries signals table for active unresolved kill triggers per ticker.
+    Returns dict: { "NVDA": [trigger_dict, ...], "TSM": [], ... }
+    Empty list means no active triggers for that ticker.
+    Called once at session start — result injected into every data package.
     """
-    results = []
+    active_triggers = {ticker: [] for ticker in config.TICKERS}
 
-    # .items() unpacks the dict into ticker + instrument_type pairs
-    for ticker, instrument_type in tickers.items():
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.fast_info
+    try:
+        with database.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT ticker, signal_type, entity_a, relationship,
+                       entity_b, notes, value, threshold
+                FROM signals
+                WHERE signal_type = 'kill_trigger'
+                  AND triggered = 1
+                  AND (outcome IS NULL OR outcome = 'unresolved')
+                ORDER BY timestamp DESC
+                """
+            ).fetchall()
 
-            current_price = info.last_price
-            prev_close = info.previous_close
+        for row in rows:
+            ticker = row["ticker"]
+            if ticker in active_triggers:
+                active_triggers[ticker].append({
+                    "signal_type":   row["signal_type"],
+                    "entity_a":      row["entity_a"],
+                    "relationship":  row["relationship"],
+                    "entity_b":      row["entity_b"],
+                    "notes":         row["notes"],
+                    "value":         row["value"],
+                    "threshold":     row["threshold"],
+                })
 
-            if current_price is None or prev_close is None:
-                print(f"  [SKIP] {ticker} — price data unavailable")
-                continue
-
-            pct_change = ((current_price - prev_close) / prev_close) * 100
-
-            # instrument_type now included — stored in the database per row
-            results.append({
-                "ticker": ticker,
-                "instrument_type": instrument_type,
-                "price": round(current_price, 2),
-                "prev_close": round(prev_close, 2),
-                "pct_change": round(pct_change, 2),
-            })
-
-        except Exception as e:
-            print(f"  [ERROR] {ticker} — {e}")
-
-    return results
-
-
-# ── STEP 2: FORMAT FOR CLAUDE ─────────────────────────────────────────────────
-def format_price_data(price_data):
-    """
-    Convert the price list into a clean text block for the analyst prompt.
-    instrument_type is included so Claude knows what kind of instrument
-    it is reasoning about — equity vs index vs ETF changes the interpretation.
-    """
-    lines = ["Current market data:\n"]
-
-    for row in price_data:
-        direction = "+" if row["pct_change"] >= 0 else ""
-        lines.append(
-            f"  {row['ticker']} ({row['instrument_type']}): "
-            f"${row['price']} "
-            f"(prev close ${row['prev_close']}, "
-            f"{direction}{row['pct_change']}%)"
+        triggered_count = sum(
+            len(v) for v in active_triggers.values()
         )
+        if triggered_count > 0:
+            print(f"  [KILL TRIGGERS] {triggered_count} active "
+                  f"trigger(s) found — injected into data packages.")
+        else:
+            print("  [KILL TRIGGERS] No active triggers.")
+
+    except Exception as e:
+        print(f"  [KILL TRIGGERS] Check failed: {e} — continuing with empty.")
+
+    return active_triggers
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 2 — DATA PACKAGE BUILDER
+# Assembles the six-layer input for every Stage 1 agent.
+# One package per ticker. Same structure every time.
+# The ticker variable changes — everything else is shared context.
+# ─────────────────────────────────────────────────────────────
+
+def build_chain_summary(all_price_data):
+    """
+    Builds a Python-assembled snapshot of all portfolio tickers today.
+    NOT an LLM call — pure Python string building from price data.
+    Free, deterministic, fast. Every agent gets this as Layer 3.
+    Gives each agent live chain context without seeing other agents' outputs.
+
+    Returns a formatted string describing the current state of the chain.
+    """
+    lines = [f"Chain status today ({datetime.now().strftime('%Y-%m-%d')}):\n"]
+
+    # Map tickers to their chain roles for readable context
+    roles = {
+        "NVDA":   "demand anchor",
+        "AVGO":   "network gatekeeper",
+        "LITE":   "photonics",
+        "TSM":    "production floor",
+        "SMH":    "semiconductor ETF",
+        "QQQ":    "nasdaq-100",
+        "G3B.SI": "local anchor",
+        "^VIX":   "fear gauge",
+    }
+
+    for row in all_price_data:
+        ticker = row["ticker"]
+        role   = roles.get(ticker, row.get("instrument_type", ""))
+        price  = row.get("price", "N/A")
+        pct    = row.get("pct_change", 0)
+        vol    = row.get("volume_signal", "")
+        direction = "+" if pct >= 0 else ""
+
+        # VIX gets a regime tag rather than a volume signal
+        if ticker == "^VIX":
+            vix_val = price if isinstance(price, (int, float)) else 0
+            if vix_val < 15:
+                regime = "low_vix"
+            elif vix_val < 20:
+                regime = "normal"
+            elif vix_val < 30:
+                regime = "high_vix"
+            else:
+                regime = "crisis"
+            lines.append(
+                f"  {ticker:<10} ({role})"
+                f"  {direction}{pct:.2f}%  ${price}  regime: {regime}"
+            )
+        else:
+            vol_str = f"  vol: {vol}" if vol else ""
+            lines.append(
+                f"  {ticker:<10} ({role})"
+                f"  {direction}{pct:.2f}%  ${price}{vol_str}"
+            )
 
     return "\n".join(lines)
 
 
-# ── STEP 3: ANALYST CALL ──────────────────────────────────────────────────────
-def get_claude_analysis(price_text, run_id):
+def build_historical_context(ticker):
     """
-    Sends price data to Claude via call_llm() and returns the raw response.
-    call_llm() handles primary model, fallback, and graceful degradation.
-    Also writes one row to llm_calls audit table per invocation.
+    Queries market_history for trajectory data on a given ticker.
+    Returns a dict of statistical anchors — trend, streak, range
+    position, moving averages, volatility regime, correlations.
+
+    Gracefully degrades: only returns fields it can compute honestly
+    from available history. Fields requiring insufficient data are
+    omitted rather than fabricated.
+
+    This is Layer 5 of the data package — the Pragmatist depends on
+    this most heavily. All other agents use it for grounding.
+    """
+    # In fixture mode skip the real history query — fixture prices
+    # are illustrative and will not match real 5-year market_history
+    if not config.USE_LIVE_DATA:
+        return {
+            "sessions_in_db": 0,
+            "note": "Historical context unavailable in fixture mode. "
+                    "Agents should reason from current price data only."
+        }
+    
+    context = {}
+
+    try:
+        rows = database.read_market_history(ticker, limit=60)
+
+        if not rows:
+            context["sessions_in_db"] = 0
+            context["note"] = "No market history available yet."
+            return context
+
+        # Convert to list of dicts for easier processing
+        # rows are ordered DESC (newest first) from read_market_history
+        history = [dict(r) for r in rows]
+        n = len(history)
+        context["sessions_in_db"] = n
+
+        # Most recent close is history[0], oldest is history[-1]
+        latest_close = history[0]["close"]
+
+        # ── Short-term trend (requires 3+ sessions) ──
+        if n >= 3:
+            close_3d_ago = history[2]["close"]
+            if close_3d_ago and close_3d_ago != 0:
+                context["3_day_return"] = round(
+                    ((latest_close - close_3d_ago) / close_3d_ago) * 100, 2
+                )
+
+        if n >= 5:
+            close_5d_ago = history[4]["close"]
+            if close_5d_ago and close_5d_ago != 0:
+                context["5_day_return"] = round(
+                    ((latest_close - close_5d_ago) / close_5d_ago) * 100, 2
+                )
+            # Trend direction from 3-day and 5-day returns
+            r3 = context.get("3_day_return", 0)
+            r5 = context.get("5_day_return", 0)
+            if r3 > 0 and r5 > 0:
+                context["trend_direction"] = "up_short_term"
+            elif r3 < 0 and r5 < 0:
+                context["trend_direction"] = "down_short_term"
+            else:
+                context["trend_direction"] = "choppy"
+
+            # Streak — consecutive up or down sessions
+            streak = 0
+            direction = None
+            for i, row in enumerate(history):
+                pct = row.get("pct_change")
+                if pct is None:
+                    break
+                if i == 0:
+                    direction = "up" if pct >= 0 else "down"
+                    streak = 1
+                elif (pct >= 0 and direction == "up") or \
+                     (pct < 0 and direction == "down"):
+                    streak += 1
+                else:
+                    break
+            context["streak"] = streak if direction == "up" else -streak
+
+        # ── Position in recent range (requires 10+ sessions) ──
+        if n >= 10:
+            closes_10 = [r["close"] for r in history[:10] if r["close"]]
+            high_10   = max(closes_10)
+            low_10    = min(closes_10)
+            if high_10 != low_10:
+                context["position_in_range_10d"] = round(
+                    (latest_close - low_10) / (high_10 - low_10), 2
+                )
+            context["10d_high"] = round(high_10, 2)
+            context["10d_low"]  = round(low_10, 2)
+            context["distance_from_10d_high"] = round(
+                ((latest_close - high_10) / high_10) * 100, 2
+            )
+
+        # ── Moving averages (requires 50+ sessions — from 5yr backfill) ──
+        if n >= 50:
+            closes_50 = [r["close"] for r in history[:50] if r["close"]]
+            ma_50     = sum(closes_50) / len(closes_50)
+            context["ma_50"]         = round(ma_50, 2)
+            context["above_ma_50"]   = latest_close > ma_50
+            context["pct_vs_ma50"]   = round(
+                ((latest_close - ma_50) / ma_50) * 100, 2
+            )
+
+        if n >= 200:
+            closes_200 = [r["close"] for r in history[:200] if r["close"]]
+            ma_200     = sum(closes_200) / len(closes_200)
+            context["ma_200"]        = round(ma_200, 2)
+            context["above_ma_200"]  = latest_close > ma_200
+            context["pct_vs_ma200"]  = round(
+                ((latest_close - ma_200) / ma_200) * 100, 2
+            )
+
+        # ── Volatility regime (requires 20+ sessions) ──
+        if n >= 20:
+            # Compute average absolute daily pct change over last 20 sessions
+            recent_moves = [
+                abs(r["pct_change"])
+                for r in history[:20]
+                if r["pct_change"] is not None
+            ]
+            if recent_moves:
+                avg_move = sum(recent_moves) / len(recent_moves)
+                context["avg_daily_move_20d"] = round(avg_move, 2)
+                # Compare to the longer-term average for regime classification
+                if n >= 60:
+                    all_moves = [
+                        abs(r["pct_change"])
+                        for r in history
+                        if r["pct_change"] is not None
+                    ]
+                    long_avg = sum(all_moves) / len(all_moves)
+                    ratio    = avg_move / long_avg if long_avg > 0 else 1
+                    if ratio > 1.5:
+                        context["volatility_regime"] = "elevated"
+                    elif ratio < 0.7:
+                        context["volatility_regime"] = "suppressed"
+                    else:
+                        context["volatility_regime"] = "normal"
+
+    except Exception as e:
+        print(f"  [HISTORICAL CONTEXT] {ticker}: failed — {e}")
+        context["error"] = str(e)
+
+    return context
+
+
+def determine_vix_regime(all_price_data):
+    """
+    Extracts the current VIX level from the price data and
+    classifies it into a regime tag. Returns the regime string.
+    Used to tag every persona_calls row with the macro context
+    at the time of the call — essential for Day 15 accuracy analysis.
+
+    Regime thresholds:
+      low_vix:  below 15  — risk-on, complacency territory
+      normal:   15 to 20  — baseline market conditions
+      high_vix: 20 to 30  — elevated caution warranted
+      crisis:   above 30  — defensive posture, thesis review
+    """
+    for row in all_price_data:
+        if row["ticker"] == "^VIX":
+            vix = row.get("price", 20)
+            if vix < 15:
+                return "low_vix", vix
+            elif vix < 20:
+                return "normal", vix
+            elif vix < 30:
+                return "high_vix", vix
+            else:
+                return "crisis", vix
+    # VIX not in data — default to normal
+    return "normal", None
+
+
+def build_data_package(ticker, instrument_type, all_price_data,
+                       active_kill_triggers, intelligence_context):
+    """
+    Assembles the complete six-layer data package for one ticker.
+    Called once per ticker before Stage 1 agents run.
+
+    Layer 1: Target ticker live price data (price, pct_change, volume)
+    Layer 2: TICKER_THESIS — static structural role in the supply chain
+    Layer 3: Chain summary — live state of all tickers today (Python-built)
+    Layer 4: PORTFOLIO_RELATIONSHIPS — causal chain description
+    Layer 5: Historical context — trajectory from market_history
+    Layer 6: Intelligence context — macro, geopolitical, AI, regulatory
+
+    Also injects active kill triggers so every agent — especially the
+    Meta-Agent — knows the pre-committed exit conditions before reasoning.
+
+    Returns a formatted string ready to pass as the user prompt to
+    each Stage 1 agent call.
+    """
+    # Find this ticker's price row from the full price data
+    ticker_row = next(
+        (r for r in all_price_data if r["ticker"] == ticker), {}
+    )
+
+    # ── Layer 1: Live price data for this ticker ──
+    price_block = f"""
+TARGET TICKER: {ticker} ({instrument_type})
+Current price:   ${ticker_row.get('price', 'N/A')}
+Previous close:  ${ticker_row.get('prev_close', 'N/A')}
+Change:          {ticker_row.get('pct_change', 'N/A')}%
+Volume:          {ticker_row.get('volume', 'N/A')} shares
+Volume signal:   {ticker_row.get('volume_signal', 'unavailable')}
+Volume vs avg:   {ticker_row.get('volume_vs_avg', 'N/A')}x 30-day average
+""".strip()
+
+    # ── Layer 2: Static thesis context ──
+    thesis_block = f"""
+THESIS CONTEXT
+{config.TICKER_THESIS.get(ticker, 'No thesis defined for this ticker.')}
+""".strip()
+
+    # ── Layer 3: Live chain summary (Python-assembled, not LLM) ──
+    chain_block = f"""
+CHAIN SUMMARY — LIVE STATE TODAY
+{build_chain_summary(all_price_data)}
+""".strip()
+
+    # ── Layer 4: Portfolio context ──
+    portfolio_block = f"""
+PORTFOLIO CONTEXT
+{config.PORTFOLIO_RELATIONSHIPS}
+""".strip()
+
+    # ── Layer 5: Historical context from market_history ──
+    hist = build_historical_context(ticker)
+    if hist.get("sessions_in_db", 0) == 0:
+        hist_block = "HISTORICAL CONTEXT\nNo market history available yet."
+    else:
+        hist_block = f"""
+HISTORICAL CONTEXT
+Sessions in database: {hist.get('sessions_in_db', 0)}
+3-day return:         {hist.get('3_day_return', 'N/A')}%
+5-day return:         {hist.get('5_day_return', 'N/A')}%
+Trend direction:      {hist.get('trend_direction', 'N/A')}
+Streak:               {hist.get('streak', 'N/A')} sessions
+Position in range:    {hist.get('position_in_range_10d', 'N/A')} (0=at low, 1=at high)
+10-day high:          ${hist.get('10d_high', 'N/A')}
+10-day low:           ${hist.get('10d_low', 'N/A')}
+Distance from high:   {hist.get('distance_from_10d_high', 'N/A')}%
+50-day MA:            ${hist.get('ma_50', 'N/A')}  (above: {hist.get('above_ma_50', 'N/A')})
+200-day MA:           ${hist.get('ma_200', 'N/A')} (above: {hist.get('above_ma_200', 'N/A')})
+Volatility regime:    {hist.get('volatility_regime', 'N/A')}
+""".strip()
+
+    # ── Layer 6: Intelligence context ──
+    macro = intelligence_context.get("macro_regime", {})
+    geo   = intelligence_context.get("geopolitical_signals", [])
+    ai    = intelligence_context.get("ai_research_signals", [])
+    reg   = intelligence_context.get("regulatory_signals", [])
+    sent  = intelligence_context.get("sentiment_signals", {})
+
+    intel_block = f"""
+INTELLIGENCE CONTEXT
+Macro regime:
+  Fed stance:        {macro.get('fed_stance', 'N/A')}
+  Rate environment:  {macro.get('rate_environment', 'N/A')}
+  Dollar strength:   {macro.get('dollar_strength', 'N/A')}
+  Key macro signal:  {macro.get('key_macro_signal', 'N/A')}
+
+Geopolitical signals:
+{chr(10).join(f'  - {s}' for s in geo)}
+
+AI research signals:
+{chr(10).join(f'  - {s}' for s in ai)}
+
+Regulatory signals:
+{chr(10).join(f'  - {s}' for s in reg)}
+
+Sentiment:
+  Retail positioning:    {sent.get('retail_positioning', 'N/A')}
+  Institutional flows:   {sent.get('institutional_flows', 'N/A')}
+  Contrarian indicator:  {sent.get('contrarian_indicator', 'N/A')}
+""".strip()
+
+    # ── Active kill triggers for this ticker ──
+    triggers = active_kill_triggers.get(ticker, [])
+    if triggers:
+        trigger_lines = [
+            f"  - {t.get('entity_b', 'unknown condition')} "
+            f"[{t.get('notes', '')}]"
+            for t in triggers
+        ]
+        trigger_block = (
+            f"ACTIVE KILL TRIGGERS ({len(triggers)} active)\n"
+            + "\n".join(trigger_lines)
+            + "\nIMPORTANT: Active kill triggers override normal analysis."
+        )
+    else:
+        trigger_block = "ACTIVE KILL TRIGGERS: None currently active."
+
+    # ── Assemble all layers into the final prompt ──
+    return "\n\n".join([
+        price_block,
+        thesis_block,
+        chain_block,
+        portfolio_block,
+        hist_block,
+        intel_block,
+        trigger_block,
+    ])
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 3 — STAGE 1: RUN FOUR ISOLATED AGENTS PER TICKER
+# Bull, Bear, Black Swan, Pragmatist run sequentially per ticker.
+# Each receives the same data package — no agent sees another's output.
+# All four outputs stored before Stage 2 Contrarian runs.
+# Async parallelisation in Day 17 — sequential is correct for now.
+# ─────────────────────────────────────────────────────────────
+
+def run_stage1_agent(agent_name, system_prompt, data_package,
+                     ticker, run_id, vix_regime, vix_level):
+    """
+    Runs one Stage 1 agent call for one ticker.
+    Writes output to analysis table and persona_calls table.
+    Returns parsed JSON output or None on failure.
+
+    agent_name:    one of 'bull', 'bear', 'black_swan', 'pragmatist'
+    system_prompt: the agent's standing brief from analyst_persona.py
+    data_package:  the six-layer string assembled by build_data_package()
+    ticker:        the ticker this agent is reasoning about
+    run_id:        the current run ID for database linkage
+    vix_regime:    current VIX regime tag for persona_calls row
+    vix_level:     current VIX price for persona_calls row
     """
     start = time.time()
+    print(f"    [{agent_name.upper()}] reasoning on {ticker}...")
 
     text, usage = call_llm(
-        prompt=f"{price_text}\n\nAnalyse this data and return your JSON response.",
-        system=STOCK_ANALYST_SYSTEM_PROMPT,
-        model=config.ANALYST_MODEL,
-        max_tokens=config.ANALYST_MAX_TOKENS,
-        temperature=config.ANALYST_TEMPERATURE,
+        prompt=(
+            f"Analyse this data package and return your JSON response.\n\n"
+            f"{data_package}"
+        ),
+        system=system_prompt,
+        model=config.STAGE_1_MODEL,
+        max_tokens=config.STAGE_1_MAX_TOKENS,
+        temperature=config.STAGE_1_TEMPERATURE,
         fallback_model=config.FALLBACK_MODEL,
         client=client,
     )
     duration = round(time.time() - start, 1)
 
-    # Write audit row — one row per call_llm() invocation
+    # Write LLM audit row — one row per call_llm() invocation
     database.write_llm_call(
         run_id=run_id,
-        call_type="analyst",
-        model_requested=config.ANALYST_MODEL,
-        model_used=usage["model_used"],
-        fallback_used=usage["fallback_used"],
-        input_tokens=usage["input_tokens"],
-        output_tokens=usage["output_tokens"],
+        call_type=f"stage1_{agent_name}",
+        model_requested=config.STAGE_1_MODEL,
+        model_used=usage.get("model_used"),
+        fallback_used=usage.get("fallback_used", False),
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
         duration_secs=duration,
-        status="fallback" if usage["fallback_used"] else "success",
+        status="fallback" if usage.get("fallback_used") else "success",
+        retried=usage.get("retried", False),
+        truncated=usage.get("truncated", False),
+        retry_budget=usage.get("retry_budget"),
     )
 
-    return text, usage, duration
+    # Detect LLM error — graceful degradation, skip this agent
+    if text.startswith("[LLM_ERROR]"):
+        print(f"    [{agent_name.upper()}] LLM error — skipping.")
+        return None
+
+    # Write raw output to analysis table
+    database.write_analysis(
+        run_id=run_id,
+        output_text=text,
+        analysis_type=agent_name,
+        ticker=ticker,
+        source="stock_monitor",
+        truncated=usage.get("truncated", False),
+    )
+
+    # Parse JSON output — returns None if unparseable
+    parsed, error = extract_json(text)
+    if not parsed:
+        print(f"    [{agent_name.upper()}] JSON parse failed: {error}")
+        return None
+
+    # Write persona_calls row — the voting ledger for Day 15 tuning
+    # direction and confidence come from the parsed JSON output
+    database.write_persona_call(
+        run_id=run_id,
+        persona=agent_name,
+        ticker=ticker,
+        direction=parsed.get("direction"),
+        confidence_score=parsed.get("confidence"),
+        regime_tag=vix_regime,
+        vix_level=vix_level,
+        rationale_summary=parsed.get("primary_argument")
+                          or parsed.get("statistical_anchor")
+                          or parsed.get("unmapped_risk", "")[:200],
+    )
+
+    print(f"    [{agent_name.upper()}] {ticker}: "
+          f"{parsed.get('direction', '?')} "
+          f"(confidence {parsed.get('confidence', '?')}) "
+          f"— {duration}s")
+    return parsed
 
 
-# ── STEP 3B: TRANSLATOR CALL ──────────────────────────────────────────────────
-def get_plain_english_explanation(analysis_json, run_id):
+# ─────────────────────────────────────────────────────────────
+# STEP 4 — STAGE 2: CONTRARIAN PER TICKER
+# Runs after all four Stage 1 agents complete for a given ticker.
+# Receives the four Stage 1 JSON outputs alongside the data package.
+# Identifies shared blind spots and hidden consensus.
+# ─────────────────────────────────────────────────────────────
+
+def run_contrarian(stage1_outputs, data_package, ticker,
+                   run_id, vix_regime, vix_level):
     """
-    Second Claude call via call_llm() — translates analyst JSON into
-    plain English. The translator never sees raw prices — only conclusions.
-    Chained call: analyst output becomes translator input.
+    Runs the Contrarian agent for one ticker.
+    stage1_outputs: dict with keys bull, bear, black_swan, pragmatist —
+                    values are the parsed JSON dicts from Stage 1.
+    Writes to analysis and persona_calls tables.
+    Returns parsed JSON or None on failure.
     """
     start = time.time()
-    analysis_text = json.dumps(analysis_json, indent=2)
+    print(f"    [CONTRARIAN] challenging {ticker}...")
+
+    # Build the Stage 1 context block — Contrarian reads all four outputs
+    # This is the only agent that sees other agents' outputs before forming
+    # its own view. This is by design — its job is to find what they missed.
+    stage1_block = "STAGE 1 AGENT OUTPUTS — READ BEFORE FORMING YOUR VIEW\n"
+    for agent_name, output in stage1_outputs.items():
+        if output:
+            stage1_block += (
+                f"\n{agent_name.upper()}:\n"
+                f"{json.dumps(output, indent=2)}\n"
+            )
+        else:
+            stage1_block += f"\n{agent_name.upper()}: [output unavailable]\n"
+
+    # Contrarian prompt combines the data package AND the Stage 1 outputs
+    contrarian_prompt = (
+        f"Here are the four Stage 1 agent outputs for {ticker}.\n"
+        f"Read them carefully, then review the data package, then "
+        f"return your Contrarian JSON response.\n\n"
+        f"{stage1_block}\n\n"
+        f"DATA PACKAGE:\n{data_package}"
+    )
 
     text, usage = call_llm(
-        prompt=f"Here is today's market analysis. Please explain it clearly:\n\n{analysis_text}",
+        prompt=contrarian_prompt,
+        system=STOCK_CONTRARIAN_SYSTEM_PROMPT,
+        model=config.STAGE_2_MODEL,
+        max_tokens=config.STAGE_2_MAX_TOKENS,
+        temperature=config.STAGE_2_TEMPERATURE,
+        fallback_model=config.FALLBACK_MODEL,
+        client=client,
+    )
+    duration = round(time.time() - start, 1)
+
+    database.write_llm_call(
+        run_id=run_id,
+        call_type="stage2_contrarian",
+        model_requested=config.STAGE_2_MODEL,
+        model_used=usage.get("model_used"),
+        fallback_used=usage.get("fallback_used", False),
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
+        duration_secs=duration,
+        status="fallback" if usage.get("fallback_used") else "success",
+        retried=usage.get("retried", False),
+        truncated=usage.get("truncated", False),
+        retry_budget=usage.get("retry_budget"),
+    )
+
+    if text.startswith("[LLM_ERROR]"):
+        print(f"    [CONTRARIAN] LLM error — skipping.")
+        return None
+
+    database.write_analysis(
+        run_id=run_id,
+        output_text=text,
+        analysis_type="contrarian",
+        ticker=ticker,
+        source="stock_monitor",
+        truncated=usage.get("truncated", False),
+    )
+
+    parsed, error = extract_json(text)
+    if not parsed:
+        print(f"    [CONTRARIAN] JSON parse failed: {error}")
+        return None
+
+    # Write persona_calls row for the Contrarian
+    # Contrarian is scored like Stage 1 agents — its directional call
+    # is tracked and outcome-scored at T+3 sessions
+    database.write_persona_call(
+        run_id=run_id,
+        persona="contrarian",
+        ticker=ticker,
+        direction=parsed.get("direction"),
+        confidence_score=parsed.get("confidence"),
+        regime_tag=vix_regime,
+        vix_level=vix_level,
+        rationale_summary=parsed.get("strongest_challenge", "")[:200],
+    )
+
+    print(f"    [CONTRARIAN] {ticker}: "
+          f"{parsed.get('direction', '?')} "
+          f"(confidence {parsed.get('confidence', '?')}) "
+          f"— {duration}s")
+    return parsed
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 5 — STAGE 3: META-AGENT (PORTFOLIO MANAGER)
+# Runs once after all per-ticker Stage 1+2 calls complete.
+# Reads the full ledger across all tickers and produces
+# ACCUMULATE/HOLD/REDUCE/EXIT per ticker + 3 kill triggers per ticker.
+# Runs at temperature 0.1 — deterministic, auditable.
+# Meta-Agent does NOT get a persona_calls row — it renders decisions,
+# not directional bets. Its outputs go to signals table instead.
+# ─────────────────────────────────────────────────────────────
+
+def run_meta_agent(all_ticker_outputs, all_price_data,
+                   intelligence_context, run_id,
+                   vix_regime, vix_level):
+    """
+    Runs the Meta-Agent portfolio manager call.
+    all_ticker_outputs: dict keyed by ticker, each value contains
+                        the Stage 1+2 agent outputs for that ticker.
+    Writes kill triggers to signals table.
+    Returns parsed JSON or None on failure.
+    """
+    start = time.time()
+    print("\n  [META-AGENT] rendering portfolio decisions...")
+
+    # Assemble the full portfolio ledger for the Meta-Agent
+    # This is the only call that sees all tickers together
+    portfolio_ledger = {
+        "session_date":         datetime.now().strftime("%Y-%m-%d"),
+        "vix_level":            vix_level,
+        "vix_regime":           vix_regime,
+        "portfolio_context":    config.PORTFOLIO_RELATIONSHIPS,
+        "intelligence_context": intelligence_context,
+        "per_ticker_analysis":  all_ticker_outputs,
+    }
+
+    text, usage = call_llm(
+        prompt=(
+            f"Here is the complete portfolio ledger for today's session. "
+            f"Render your final decisions for each ticker.\n\n"
+            f"{json.dumps(portfolio_ledger, indent=2)}"
+        ),
+        system=STOCK_META_AGENT_SYSTEM_PROMPT,
+        model=config.STAGE_3_MODEL,
+        max_tokens=config.STAGE_3_MAX_TOKENS,
+        temperature=config.STAGE_3_TEMPERATURE,
+        fallback_model=config.FALLBACK_MODEL,
+        client=client,
+    )
+    duration = round(time.time() - start, 1)
+
+    database.write_llm_call(
+        run_id=run_id,
+        call_type="stage3_meta_agent",
+        model_requested=config.STAGE_3_MODEL,
+        model_used=usage.get("model_used"),
+        fallback_used=usage.get("fallback_used", False),
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
+        duration_secs=duration,
+        status="fallback" if usage.get("fallback_used") else "success",
+        retried=usage.get("retried", False),
+        truncated=usage.get("truncated", False),
+        retry_budget=usage.get("retry_budget"),
+    )
+
+    if text.startswith("[LLM_ERROR]"):
+        print("  [META-AGENT] LLM error — pipeline cannot complete.")
+        return None
+
+    database.write_analysis(
+        run_id=run_id,
+        output_text=text,
+        analysis_type="meta_agent",
+        ticker=None,   # portfolio-level — no single ticker
+        source="stock_monitor",
+        truncated=usage.get("truncated", False),
+    )
+
+    parsed, error = extract_json(text)
+    if not parsed:
+        print(f"  [META-AGENT] JSON parse failed: {error}")
+        return None
+
+    # ── Write kill triggers to signals table ──
+    # Three kill triggers per ticker stored as entity_a/relationship/entity_b
+    # rows. check_kill_triggers() reads these at the top of every future session.
+    tickers_output = parsed.get("tickers", {})
+    for ticker, ticker_decision in tickers_output.items():
+        decision = ticker_decision.get("decision", "HOLD")
+
+        # Write the meta decision as a signal row
+        database.write_signal(
+            run_id=run_id,
+            ticker=ticker,
+            signal_type="meta_decision",
+            direction=decision,
+            notes=ticker_decision.get("primary_rationale", ""),
+        )
+
+        # Write each kill trigger as a separate signal row
+        for i, trigger_key in enumerate(
+            ["kill_trigger_1", "kill_trigger_2", "kill_trigger_3"], 1
+        ):
+            trigger_text = ticker_decision.get(trigger_key)
+            if trigger_text:
+                # Map trigger number to type for clarity
+                trigger_types = {
+                    1: "price/technical",
+                    2: "thesis_integrity",
+                    3: "macro_regime"
+                }
+                database.write_signal(
+                    run_id=run_id,
+                    ticker=ticker,
+                    signal_type="kill_trigger",
+                    triggered=0,   # not yet fired — pre-committed condition
+                    entity_a=ticker,
+                    relationship="kill_trigger",
+                    entity_b=trigger_text,
+                    notes=f"Type: {trigger_types[i]}. "
+                          f"Decision: {decision}. "
+                          f"Horizon: {ticker_decision.get('review_horizon', 'T+3')}",
+                )
+
+    print(f"  [META-AGENT] Complete — {duration}s")
+    return parsed
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 6 — TRANSLATOR
+# Reads Meta-Agent output and produces plain English briefing.
+# Not an analyst — never re-analyses. Only translates and teaches.
+# ─────────────────────────────────────────────────────────────
+
+def run_translator(meta_output, run_id):
+    """
+    Translates the Meta-Agent's portfolio decisions into plain English.
+    Receives the full parsed Meta-Agent JSON.
+    Returns plain text briefing string.
+    """
+    start = time.time()
+    print("\n  [TRANSLATOR] writing plain English briefing...")
+
+    text, usage = call_llm(
+        prompt=(
+            f"Here are today's portfolio manager decisions. "
+            f"Please explain them clearly.\n\n"
+            f"{json.dumps(meta_output, indent=2)}"
+        ),
         system=TRANSLATOR_SYSTEM_PROMPT,
         model=config.TRANSLATOR_MODEL,
         max_tokens=config.TRANSLATOR_MAX_TOKENS,
@@ -147,230 +837,397 @@ def get_plain_english_explanation(analysis_json, run_id):
         fallback_model=config.FALLBACK_MODEL,
         client=client,
     )
-
     duration = round(time.time() - start, 1)
 
-    # Audit row for translator call
     database.write_llm_call(
         run_id=run_id,
         call_type="translator",
         model_requested=config.TRANSLATOR_MODEL,
-        model_used=usage["model_used"],
-        fallback_used=usage["fallback_used"],
-        input_tokens=usage["input_tokens"],
-        output_tokens=usage["output_tokens"],
+        model_used=usage.get("model_used"),
+        fallback_used=usage.get("fallback_used", False),
+        input_tokens=usage.get("input_tokens", 0),
+        output_tokens=usage.get("output_tokens", 0),
         duration_secs=duration,
-        status="fallback" if usage["fallback_used"] else "success",
+        status="fallback" if usage.get("fallback_used") else "success",
+        retried=usage.get("retried", False),
+        truncated=usage.get("truncated", False),
+        retry_budget=usage.get("retry_budget"),
     )
 
-    return text, usage, duration
+    if text.startswith("[LLM_ERROR]"):
+        return "[Translator unavailable — see LLM error above.]"
+
+    database.write_analysis(
+        run_id=run_id,
+        output_text=text,
+        analysis_type="translator",
+        ticker=None,
+        source="stock_monitor",
+        truncated=usage.get("truncated", False),
+    )
+
+    print(f"  [TRANSLATOR] Complete — {duration}s")
+    return text
 
 
-# ── STEP 4: PARSE CLAUDE'S RESPONSE ──────────────────────────────────────────
-def parse_claude_response(raw_text):
+# ─────────────────────────────────────────────────────────────
+# STEP 7 — DISPLAY
+# Prints the Meta-Agent decisions and Translator briefing to terminal.
+# Formatted for readability — not JSON.
+# ─────────────────────────────────────────────────────────────
+
+def display_results(price_data, meta_output, briefing):
     """
-    Converts Claude's raw text response into a Python dictionary.
-    Uses extract_json() from shared/utils.py — the same deterministic
-    cleaner used in the HDB analyser. Falls back to direct json.loads()
-    if the response is clean. Returns None on total failure.
+    Prints price data, Meta-Agent decisions, and plain English briefing.
+    meta_output: the parsed Meta-Agent JSON dict.
+    briefing:    the plain text Translator output.
     """
-    # Try shared cleaner first — handles fences, preamble, bold markers
-    parsed, error = extract_json(raw_text)
-    if parsed:
-        return parsed
-
-    # Direct parse as fallback — sometimes Claude returns clean JSON
-    try:
-        return json.loads(raw_text)
-    except json.JSONDecodeError as e:
-        print(f"\n[PARSE ERROR] Could not parse Claude's response: {e}")
-        print(f"[RAW RESPONSE]\n{raw_text}")
-        return None
-
-
-# ── STEP 5: DISPLAY RESULTS ───────────────────────────────────────────────────
-def display_analysis(price_data, analysis):
-    """
-    Prints price data and Claude's structured analysis to the terminal.
-    price_data is now a list of dicts — updated from v3's dict of dicts.
-    """
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"  STOCK MONITOR — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("="*60)
+    print("=" * 60)
 
+    # ── Price data ──
     print("\n[ PRICE DATA ]\n")
     for row in price_data:
         direction = "+" if row["pct_change"] >= 0 else ""
-        print(f"  {row['ticker']:<12} ${row['price']:<10} {direction}{row['pct_change']}%")
+        vol_str   = (
+            f"  vol: {row.get('volume_signal', '')}"
+            if row.get("volume_signal") else ""
+        )
+        print(f"  {row['ticker']:<12} ${row['price']:<10} "
+              f"{direction}{row['pct_change']}%{vol_str}")
 
-    print("\n[ CLAUDE ANALYSIS ]\n")
+    # ── Meta-Agent decisions ──
+    if meta_output:
+        print("\n[ PORTFOLIO DECISIONS ]\n")
+        tickers_out = meta_output.get("tickers", {})
+        for ticker, decision in tickers_out.items():
+            d         = decision.get("decision", "N/A")
+            conf      = decision.get("confidence", "?")
+            rationale = decision.get("primary_rationale", "")
+            print(f"  {ticker:<12} {d:<12} (confidence {conf})")
+            print(f"             {rationale}")
+            print()
 
-    if analysis is None:
-        print("  Analysis unavailable — see parse error above.")
-        return
+        summary = meta_output.get("portfolio_summary", "")
+        if summary:
+            print(f"[ PORTFOLIO SUMMARY ]\n")
+            print(f"  {summary}\n")
 
-    print(f"  Market Tone:        {analysis.get('market_tone', 'N/A')}")
-    print(f"\n  Summary:\n  {analysis.get('session_summary', 'N/A')}")
-    print(f"\n  Notable Movers:\n  {analysis.get('notable_movers', 'N/A')}")
-    print(f"\n  VIX Signal:\n  {analysis.get('vix_signal', 'N/A')}")
-    print(f"\n  Concentration Risk:\n  {analysis.get('concentration_risk', 'N/A')}")
-    print(f"\n  Buy List Impact:\n  {analysis.get('buy_list_impact', 'N/A')}")
-    print(f"\n  Watch Tomorrow:\n  {analysis.get('watch_tomorrow', 'N/A')}")
+        premortem = meta_output.get("premortem_flag", False)
+        if premortem:
+            premortem_scenario = meta_output.get("premortem_scenario")
+            print("  [STRESS TEST FAILED] Premortem triggered — "
+                  "review before acting on decisions.")
+            if premortem_scenario:
+                print(f"  Alternative thesis: {premortem_scenario}\n")
 
-    print("\n" + "="*60 + "\n")
+    # ── Plain English briefing ──
+    print("=" * 60)
+    print("  PLAIN ENGLISH BRIEFING")
+    print("=" * 60)
+    print(briefing)
+    print("=" * 60 + "\n")
 
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# MAIN — ORCHESTRATES THE FULL PIPELINE
+# Order: init → kill triggers → fetch data → Stage 1 per ticker
+#      → Stage 2 per ticker → Stage 3 portfolio → Translator
+#      → display → run summary → finish
+# ─────────────────────────────────────────────────────────────
+
 def main():
-    # Initialise database — creates tables if they don't exist
-    # Safe to call every run — IF NOT EXISTS protects existing data
+    """
+    Orchestrates the full six-agent pipeline.
+    Each step is a discrete function — one concern per function.
+    Stats accumulate throughout and are written to run_log on finish.
+    """
+    # ── Initialise ──
     database.initialise_db()
-
-    # Generate run_id once — passed to every write function so all rows
-    # for this run are linked across prices, analysis, signals, llm_calls
-    run_id = database.generate_run_id()
+    run_id    = database.generate_run_id()
     data_mode = "live" if config.USE_LIVE_DATA else "fixture"
     database.start_run(run_id, data_mode=data_mode)
 
-    # Track stats across the run — passed to finish_run() at the end
+    # Accumulates token counts, durations, and cost across all calls
     stats = {
-        "tickers_attempted": 0,
-        "tickers_succeeded": 0,
-        "tickers_failed": 0,
-        "analyst_input_tokens": 0,
-        "analyst_output_tokens": 0,
+        "tickers_attempted":   0,
+        "tickers_succeeded":   0,
+        "tickers_failed":      0,
+        "analyst_input_tokens":    0,
+        "analyst_output_tokens":   0,
         "translator_input_tokens": 0,
-        "translator_output_tokens": 0,
-        "analyst_duration_secs": 0,
-        "translator_duration_secs": 0,
+        "translator_output_tokens":0,
+        "analyst_duration_secs":   0,
+        "translator_duration_secs":0,
         "fallback_used": 0,
-        "error_count": 0,
+        "error_count":   0,
+        "total_cost_usd":0,
     }
 
+    # Accumulates all LLM call costs for run summary
+    all_call_costs = []
+
     try:
-        # ── Fetch prices ──
-        print("Fetching prices...")
-        price_data = fetch_prices(config.TICKERS)
+        print(f"\n{'='*60}")
+        print(f"  STOCK MONITOR — Run {run_id}")
+        print(f"  Mode: {data_mode.upper()}")
+        print(f"{'='*60}\n")
+
+        # ── Kill trigger check ──
+        # Must run before any data fetch so active triggers are
+        # injected into data packages before agents start reasoning
+        print("Checking kill triggers...")
+        active_kill_triggers = check_kill_triggers()
+
+        # ── Update market history (delta pull) ──
+        # Fetches new trading days since last stored date.
+        # Skipped in fixture mode — agents read existing market_history.
+        # This must run before build_historical_context() is called.
+        print("\nUpdating market history...")
+        update_market_history(
+            tickers=list(config.TICKERS.keys()),
+            use_live=config.USE_LIVE_DATA,
+        )
+
+        # ── Fetch current prices ──
+        print("\nFetching current prices...")
+        price_data = get_current_prices(
+            tickers=config.TICKERS,
+            use_live=config.USE_LIVE_DATA,
+        )
         stats["tickers_attempted"] = len(config.TICKERS)
-        stats["tickers_succeeded"] = len(price_data)
-        stats["tickers_failed"] = stats["tickers_attempted"] - stats["tickers_succeeded"]
+        stats["tickers_succeeded"] = len(
+            [r for r in price_data if r.get("price") is not None]
+        )
+        stats["tickers_failed"] = (
+            stats["tickers_attempted"] - stats["tickers_succeeded"]
+        )
 
         if not price_data:
-            print("No price data retrieved. Check internet connection and tickers.")
+            print("No price data retrieved.")
             database.finish_run(run_id, status="failed", stats=stats)
             return
 
-        print(f"  Retrieved {len(price_data)} tickers.\n")
+        print(f"  Retrieved {stats['tickers_succeeded']} tickers.\n")
 
         # ── Write prices to database ──
         database.write_prices(run_id, price_data)
 
-        # ── Format for Claude ──
-        price_text = format_price_data(price_data)
+        # ── Get VIX regime for tagging persona_calls ──
+        vix_regime, vix_level = determine_vix_regime(price_data)
+        print(f"  VIX regime: {vix_regime} (VIX: {vix_level})\n")
 
-        # ── Analyst call ──
-        print("Sending to analyst...")
-        raw_response, analyst_usage, analyst_duration = get_claude_analysis(
-            price_text, run_id
+        # ── Fetch intelligence context ──
+        intelligence_context = get_intelligence_context(
+            use_live=config.USE_LIVE_DATA
         )
-        analysis = parse_claude_response(raw_response)
 
-        # Update stats from analyst call
-        stats["analyst_input_tokens"] = analyst_usage["input_tokens"]
-        stats["analyst_output_tokens"] = analyst_usage["output_tokens"]
-        stats["analyst_duration_secs"] = analyst_duration
-        if analyst_usage["fallback_used"]:
-            stats["fallback_used"] = 1
+        # ── Stage 1 + Stage 2 per ticker ──
+        # all_ticker_outputs accumulates agent results across all tickers.
+        # Meta-Agent reads this in Stage 3.
+        all_ticker_outputs = {}
 
-        # Write analyst output to database
-        if raw_response and not raw_response.startswith("[LLM_ERROR]"):
-            database.write_analysis(
-                run_id=run_id,
-                output_text=raw_response,
-                analysis_type="analyst",
-                source="stock_monitor",
+        print("Running Stage 1 + Stage 2 agents...\n")
+        for ticker, instrument_type in config.TICKERS.items():
+
+            # VIX is a regime classifier — agents reason about it but
+            # it does not get its own Stage 1 analysis round
+            if ticker == "^VIX":
+                continue
+
+            print(f"  {ticker}:")
+
+            # ── Build the data package for this ticker ──
+            data_package = build_data_package(
+                ticker=ticker,
+                instrument_type=instrument_type,
+                all_price_data=price_data,
+                active_kill_triggers=active_kill_triggers,
+                intelligence_context=intelligence_context,
             )
 
-        # Display structured output
-        display_analysis(price_data, analysis)
+            # ── Stage 1: four isolated agents ──
+            # Each agent receives the same data package independently.
+            # No agent sees another's output at this stage.
+            stage1_outputs = {}
 
-        # ── Translator call ──
-        if analysis:
-            print("Translating to plain English...\n")
-            explanation, translator_usage, translator_duration = get_plain_english_explanation(
-                analysis, run_id
-            )
+            agents = [
+                ("bull",        STOCK_BULL_SYSTEM_PROMPT),
+                ("bear",        STOCK_BEAR_SYSTEM_PROMPT),
+                ("black_swan",  STOCK_BLACK_SWAN_SYSTEM_PROMPT),
+                ("pragmatist",  STOCK_PRAGMATIST_SYSTEM_PROMPT),
+            ]
 
-            # Update stats from translator call
-            stats["translator_input_tokens"] = translator_usage["input_tokens"]
-            stats["translator_output_tokens"] = translator_usage["output_tokens"]
-            stats["translator_duration_secs"] = translator_duration
-            if translator_usage["fallback_used"]:
-                stats["fallback_used"] = 1
-
-            # Write translator output to database
-            if explanation and not explanation.startswith("[LLM_ERROR]"):
-                database.write_analysis(
+            for agent_name, system_prompt in agents:
+                output = run_stage1_agent(
+                    agent_name=agent_name,
+                    system_prompt=system_prompt,
+                    data_package=data_package,
+                    ticker=ticker,
                     run_id=run_id,
-                    output_text=explanation,
-                    analysis_type="translator",
-                    source="stock_monitor",
+                    vix_regime=vix_regime,
+                    vix_level=vix_level,
                 )
+                stage1_outputs[agent_name] = output
 
-            # Display plain English briefing
-            print("="*60)
-            print("  PLAIN ENGLISH BRIEFING")
-            print("="*60)
-            print(explanation)
-            print("="*60 + "\n")
+            # ── Stage 2: Contrarian reads all four Stage 1 outputs ──
+            contrarian_output = run_contrarian(
+                stage1_outputs=stage1_outputs,
+                data_package=data_package,
+                ticker=ticker,
+                run_id=run_id,
+                vix_regime=vix_regime,
+                vix_level=vix_level,
+            )
+
+            # Compress agent outputs for Meta-Agent — pass only the
+            # essential fields, not full JSON. This reduces Meta-Agent
+            # input from ~32k tokens to ~8k tokens while preserving
+            # all decision-relevant information.
+            def compress(output, key_fields):
+                # Extracts only the fields the Meta-Agent needs
+                # Drops verbose fields like full rationale text
+                if not output:
+                    return None
+                return {k: output.get(k) for k in key_fields if k in output}
+
+            all_ticker_outputs[ticker] = {
+                "price": {
+                    "price":      next((r["price"] for r in price_data if r["ticker"] == ticker), None),
+                    "pct_change": next((r["pct_change"] for r in price_data if r["ticker"] == ticker), None),
+                },
+                "bull": compress(stage1_outputs.get("bull"), [
+                    "direction", "confidence", "primary_argument",
+                    "key_assumption", "regime_sensitivity", "watch_items"
+                ]),
+                "bear": compress(stage1_outputs.get("bear"), [
+                    "direction", "confidence", "primary_argument",
+                    "key_assumption", "regime_sensitivity", "watch_items"
+                ]),
+                "black_swan": compress(stage1_outputs.get("black_swan"), [
+                    "direction", "confidence", "unmapped_risk",
+                    "underweighted_risk", "contagion_path", "watch_items"
+                ]),
+                "pragmatist": compress(stage1_outputs.get("pragmatist"), [
+                    "direction", "confidence", "statistical_anchor",
+                    "volume_assessment", "trend_assessment", "watch_items"
+                ]),
+                "contrarian": compress(contrarian_output, [
+                    "direction", "confidence", "shared_blind_spot",
+                    "unasked_question", "strongest_challenge"
+                ]),
+                "active_kill_triggers": active_kill_triggers.get(ticker, []),
+            }
+
+            print()  # spacing between tickers
+
+        # ── Stage 3: Meta-Agent reads full portfolio ledger ──
+        meta_output = run_meta_agent(
+            all_ticker_outputs=all_ticker_outputs,
+            all_price_data=price_data,
+            intelligence_context=intelligence_context,
+            run_id=run_id,
+            vix_regime=vix_regime,
+            vix_level=vix_level,
+        )
+
+        # ── Translator: plain English briefing ──
+        briefing = ""
+        if meta_output:
+            briefing = run_translator(meta_output, run_id)
+
+        # ── Display results ──
+        display_results(price_data, meta_output, briefing)
+
+        # ── Compute total run cost from all llm_calls for this run ──
+        # Queries the database rather than summing from stats — this
+        # captures every call including any that bypassed stats tracking
+        try:
+            with database.get_connection() as conn:
+                cost_row = conn.execute(
+                    "SELECT COALESCE(SUM(cost_usd), 0) AS total "
+                    "FROM llm_calls WHERE run_id = ?",
+                    (run_id,)
+                ).fetchone()
+                total_cost = round(cost_row["total"], 6)
+        except Exception:
+            total_cost = 0.0
+
+        stats["total_cost_usd"] = total_cost
+        balance = database.get_estimated_balance()
 
         # ── Run summary ──
-        total_input = stats["analyst_input_tokens"] + stats["translator_input_tokens"]
-        total_output = stats["analyst_output_tokens"] + stats["translator_output_tokens"]
-        total_duration = round(
-            stats["analyst_duration_secs"] + stats["translator_duration_secs"], 1
-        )
+        # Query llm_calls for full token breakdown — more accurate than
+        # accumulating in stats because it captures every call including
+        # retries. Groups by call_type prefix for readable summary.
+        try:
+            with database.get_connection() as conn:
+                call_rows = conn.execute(
+                    """
+                    SELECT call_type, model_used,
+                           SUM(input_tokens)  AS total_input,
+                           SUM(output_tokens) AS total_output,
+                           SUM(cost_usd)      AS total_cost,
+                           COUNT(*)           AS call_count,
+                           SUM(retried)       AS retries,
+                           SUM(truncated)     AS truncations
+                    FROM llm_calls
+                    WHERE run_id = ?
+                    GROUP BY call_type, model_used
+                    ORDER BY call_type
+                    """,
+                    (run_id,)
+                ).fetchall()
+        except Exception:
+            call_rows = []
 
-        # Compute total run cost from all llm_calls rows for this run
-        total_cost = sum([
-            database.compute_call_cost(
-                config.ANALYST_MODEL,
-                stats["analyst_input_tokens"],
-                stats["analyst_output_tokens"]
-            ),
-            database.compute_call_cost(
-                config.TRANSLATOR_MODEL,
-                stats["translator_input_tokens"],
-                stats["translator_output_tokens"]
-            ),
-        ])
-        stats["total_cost_usd"] = total_cost
-
-        # Fetch estimated balance — None if no topup has been logged yet
-        balance = database.get_estimated_balance()
+        total_input_all  = sum(r["total_input"]  for r in call_rows)
+        total_output_all = sum(r["total_output"] for r in call_rows)
+        total_retries    = sum(r["retries"]      for r in call_rows)
+        total_truncations= sum(r["truncations"]  for r in call_rows)
 
         print("\n── Run Summary ──────────────────────────────────")
         print(f"  Run ID     — {run_id}")
         print(f"  Data mode  — {data_mode}")
-        print(f"  Analyst    — in: {stats['analyst_input_tokens']:,}  out: {stats['analyst_output_tokens']:,}  {stats['analyst_duration_secs']}s")
-        print(f"  Translator — in: {stats['translator_input_tokens']:,}  out: {stats['translator_output_tokens']:,}  {stats['translator_duration_secs']}s")
-        print(f"  TOTAL      — in: {total_input:,}  out: {total_output:,}  {total_duration}s")
-        print(f"  Run cost   — ${total_cost:.4f}")
-        print(f"  Tickers    — {stats['tickers_succeeded']} succeeded / {stats['tickers_failed']} failed")
-        if stats["fallback_used"]:
-            print(f"  [WARN] Fallback model was used this run.")
+        print(f"  VIX regime — {vix_regime}")
+        print(f"  Tickers    — {stats['tickers_succeeded']} succeeded"
+              f" / {stats['tickers_failed']} failed")
+        print()
+        print(f"  {'Call type':<28} {'In':>7} {'Out':>7} {'Cost':>8} {'Calls':>5}")
+        print(f"  {'─'*28} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
+        for r in call_rows:
+            print(
+                f"  {r['call_type']:<28} "
+                f"{r['total_input']:>7,} "
+                f"{r['total_output']:>7,} "
+                f"${r['total_cost']:>7.4f} "
+                f"{r['call_count']:>5}"
+            )
+        print(f"  {'─'*28} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
+        print(
+            f"  {'TOTAL':<28} "
+            f"{total_input_all:>7,} "
+            f"{total_output_all:>7,} "
+            f"${total_cost:>7.4f}"
+        )
+        print()
+        if total_retries > 0:
+            print(f"  [TRUNCATION] {total_retries} retries, "
+                  f"{total_truncations} still truncated after retry.")
+            print(f"  Consider raising token budgets for truncating agents.")
         if balance:
             print(f"  Est. balance remaining — ${balance['estimated_remaining']:.2f}")
             print(f"  Total spent to date    — ${balance['total_spent']:.4f}")
         else:
-            print(f"  Balance — log your first topup with database.log_balance_topup(amount)")
+            print("  Balance — run tools/set_anthropic_balance.py to set opening balance")
+        if stats["fallback_used"]:
+            print("  [WARN] Fallback model was used this run.")
         print("─" * 50)
 
-        # Close the run log — status complete
         database.finish_run(run_id, status="complete", stats=stats)
 
     except Exception as e:
-        # Something unexpected failed — log it, mark run as failed
         print(f"\n[FATAL] Unexpected error: {e}")
         stats["error_count"] += 1
         database.finish_run(run_id, status="failed", stats=stats)

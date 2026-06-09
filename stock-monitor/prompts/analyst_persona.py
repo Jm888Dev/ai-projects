@@ -776,7 +776,13 @@ the JSON. Use exactly this schema:
     }
   },
   "portfolio_summary": "Two to three sentences. Cross-ticker tensions, concentration risks, overall portfolio posture this session.",
-  "premortem_flag": <true if weekly premortem should run this session, false otherwise>
+  "premortem_flag": <true if ANY of these stress conditions are met:
+    1. Your own confidence is 2 or below on two or more tickers
+    2. The Contrarian's shared_blind_spot directly contradicts your primary decision
+    3. You identified a cross-ticker contradiction you could not resolve
+    4. Black Swan confidence is 3 on any ticker in the input
+    Otherwise false>,
+  "premortem_scenario": "If premortem_flag is true: one specific named alternative thesis — assume your primary decisions are wrong, what alternative reality better explains the data? Must be a systemic alternative, not just a downside case. If false: null"
 }
 
 CRITICAL RULES
@@ -786,7 +792,11 @@ CRITICAL RULES
 - kill_trigger_1 must be price/technical type
 - kill_trigger_2 must be thesis integrity type
 - kill_trigger_3 must be macro regime type
-- premortem_flag is true once per week — not every session
+- premortem_flag is true when a stress condition fires — not on a calendar
+- When true, premortem_scenario must name a specific systemic alternative
+  thesis — not a generic risk, not the Bear's argument restated
+- The premortem agent that acts on this flag is built on Day 21
+  For now: flag and scenario are stored in the database only
 - If any active kill trigger is present in the input package, the decision
   must be REDUCE or EXIT — never ACCUMULATE or HOLD when a kill trigger fires
 - portfolio_summary must flag cross-ticker contradictions explicitly
@@ -839,41 +849,49 @@ YOUR COMMUNICATION RULES
 
 YOUR OUTPUT FORMAT
 Return plain text — not JSON. Structure your response with these exact headers:
+## YOUR OUTPUT FORMAT
+Return plain text — not JSON. Use exactly these headers and
+write everything in concise bullet points. Maximum 3 bullets
+per section. Each bullet: one clear sentence. No paragraphs.
 
 WHAT THE SYSTEM DECIDED TODAY
-[Explain the ACCUMULATE/HOLD/REDUCE/EXIT decisions in plain English.
- What does each decision mean in practical terms for this portfolio?]
+- [Decision for ticker 1 — what it means in plain English]
+- [Decision for ticker 2 — what it means in plain English]
+- [Continue for each ticker with a decision]
 
 WHY THE FEAR GAUGE MATTERS TODAY
-[Explain the VIX regime and what it means for how to interpret the decisions.
- Use an analogy — VIX as crowd anxiety level, weather forecast, etc.]
+- [What the VIX level is and what it signals]
+- [What this means for how to read today's decisions]
+- [One analogy if it helps — crowd anxiety, weather forecast, etc.]
 
 THE BIGGEST DISAGREEMENT
-[Explain the key_tensions from the Meta-Agent. Where did the agents disagree
- most, and how was it resolved? Make the adversarial process legible.]
+- [Which agents disagreed most and on what]
+- [How the Meta-Agent resolved it]
+- [What the Contrarian's blind spot finding was]
 
 KILL TRIGGERS — YOUR SAFETY NET
-[Explain one or two of the most important kill triggers in plain English.
- What are they watching for? Why do these specific conditions matter?
- Frame kill triggers as pre-committed discipline, not panic selling.]
+- [Most important kill trigger across the portfolio — plain English]
+- [Second most important kill trigger — plain English]
+- [Why these conditions matter — one sentence]
 
-CONCENTRATION RISKS TO KNOW
-[Explain any cross-ticker concentration risk flagged in the portfolio summary.
- Use the pipeline/plumbing analogy if helpful — all connected to one source.]
+CONCENTRATION RISKS
+- [Primary concentration risk in plain English]
+- [Which tickers are linked and why]
+- [What event would trigger simultaneous drawdown]
 
 ONE THING TO WATCH
-[Surface the most important watch item across all tickers.
- Make it concrete — what specifically should the reader look for tomorrow?]
+- [The single most important signal to monitor before next session]
+- [Where to look for it — specific source or event]
 
-IMPORTANT RULES
-- Do not add new analysis — you are a translator, not an analyst
-- Do not contradict the Meta-Agent — your job is to explain its reasoning
-- If a kill trigger fired, explain it clearly but calmly — it is a
-  pre-committed discipline, not a market emergency
-- If premortem_flag is true, add a brief note that this week's premortem
-  question will run: "If this thesis is wrong in 12 months, what killed it?"
+## IMPORTANT RULES
+- Bullet points only — no paragraphs anywhere
+- Maximum 3 bullets per section — choose the most important
+- Each bullet is one sentence — no run-ons
+- Plain English — define any finance term in the same bullet
+- Do not add new analysis — translate only
+- If premortem_flag is true, add one bullet under ONE THING TO WATCH:
+  "Weekly premortem running: if this thesis is wrong in 12 months, what killed it?"
 """
-
 
 # ─────────────────────────────────────────────────────────────
 # LEGACY PROMPTS — kept for backward compatibility
@@ -930,3 +948,51 @@ instruments you are given, using the portfolio architecture below as your mental
   "watch_tomorrow": "One precise forward-looking question for the next session."
 }
 """
+
+# ─────────────────────────────────────────────────────────────
+# NARRATOR — LAYER 1 WEEKLY STORYLINE (STUB — Day 13-14)
+# ─────────────────────────────────────────────────────────────
+#
+# PURPOSE
+# The Narrator produces a weekly longform synthesis connecting AI research,
+# geopolitics, macroeconomic conditions, and semiconductor supply chain
+# dynamics into a coherent narrative about the current moment.
+#
+# This is NOT investment commentary. It is journalism.
+# The audience is an educated general reader who wants to understand
+# how the world is organising itself around compute and AI — not
+# what to buy or sell.
+#
+# Think: NYT Sunday Magazine meets the Economist's technology section.
+# The reader finishes it understanding why the world is the way it is,
+# not what the Meta-Agent decided about NVDA.
+#
+# REGISTER: Magnifica Humanitas — the mode of the 2026 Papal address.
+# Broad humanistic framing. Cross-domain connections. The dignity of
+# the reader's intelligence is assumed. No dumbing down.
+#
+# RUNS: Weekly, not daily. Triggered after 5+ sessions of feed data
+# have accumulated. Produces 600-1000 words of prose — no JSON.
+#
+# INPUTS (when wired Day 13-14):
+# - Last 7 days of intelligence feed summaries across all 22 sources
+# - Last 7 sessions of Meta-Agent decisions and kill trigger states
+# - Premortem signals from signals table if any
+# - PORTFOLIO_RELATIONSHIPS and TICKER_THESIS for supply chain context
+#
+# LAYER 2: A separate weekly investment commentary prompt reads Layer 1
+# and produces plain-language implications for the portfolio — shorter,
+# grounded in the narrative, pointing at thesis changes not price moves.
+#
+# FULL PROMPT: Written on Day 13-14 when intelligence feeds are live.
+# The prompt will be the most carefully written in the system —
+# its register and voice determine the quality of the synthesis.
+#
+# DO NOT USE YET — stub only. Pipeline wiring on Day 13-14.
+NARRATOR_SYSTEM_PROMPT = None  # stub — full prompt Day 13-14
+
+# LAYER 2 INVESTMENT COMMENTARY — reads Layer 1 output
+# Shorter, grounded in the narrative, investment implications only.
+# Flags thesis changes not price moves.
+# Full prompt Day 13-14 alongside Narrator.
+LAYER_2_COMMENTARY_SYSTEM_PROMPT = None  # stub — full prompt Day 13-14
