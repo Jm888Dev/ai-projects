@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bull",
+  "ticker": "G3B.SI",
+  "direction": "ACCUMULATE",
+  "confidence": 4,
+  "primary_argument": "G3B.SI is rallying +1.08% while the entire US semiconductor chain (NVDA -0.75%, LITE -5.44%, SMH -0.92%) contracts, proving the thesis-critical divergence is working exactly as designed — Singapore banking stability is decoupling from US tech volatility and providing the portfolio's intended cushion.",
+  "supporting_evidence": "G3B.SI +1.08% vs SMH -0.92% and LITE -5.44% represents active thesis validation: the local anchor is moving opposite direction to the semiconductor drawdown. Volume at 0.88x 30-day average is normal, not panic-driven, indicating organic institutional accumulation rather than retail noise. Price is $5.218, only -3.41% from 10-day high of $5.34 and above the 50-day MA of $5.15, positioning it as a structural support zone.",
+  "key_assumption": "The assumption is that Singapore banking sector fundamentals (DBS, OCBC, UOB dividend stability) remain insulated from US semiconductor cycle pressure and that MAS policy does not tighten in response to any Fed-driven rate expectations. If this assumption holds, G3B.SI's negative correlation to the tech chain is genuine diversification, not temporary noise.",
+  "regime_sensitivity": "In a low_vix regime (current state at 18.83), this call strengthens — G3B.SI's +1.08% move is conviction-driven accumulation, not forced hedging. If VIX spikes to high_vix (>25), the thesis becomes even more powerful: G3B.SI would likely rally further as a flight-to-stability trade, while the semiconductor chain faces forced liquidation. The SGD currency hedge also activates — USD weakness in a risk-off environment strengthens SGD returns.",
+  "watch_items": [
+    "G3B.SI falls below 50-day MA of $5.15 and closes below $5.10 on elevated volume (>1.2x 30-day average) — signals thesis breakdown and Singapore banking sector deterioration.",
+    "STI-to-S&P 500 correlation coefficient rises above +0.75 (from historical 0.4-0.6 range) for 5+ consecutive sessions — indicates G3B.SI has lost its diversification benefit and is now moving in lockstep with US tech, invalidating the core thesis."
+  ]
+}
+```

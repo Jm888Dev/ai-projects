@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bull",
+  "ticker": "AVGO",
+  "direction": "ACCUMULATE",
+  "confidence": 4,
+  "primary_argument": "AVGO is down 2.19% on low conviction volume while the decoupling thesis — custom silicon wins at Google, Meta, Apple reducing NVDA dependence — remains structurally intact and unrefuted by any macro, regulatory, or competitive signal this week.",
+  "supporting_evidence": "First: AVGO is down only 2.19% versus LITE down 5.44% on identical low-volume conditions, signaling AVGO's networking moat is holding relative to photonics — the thesis-critical divergence. Second: NVDA down only 0.75% while AVGO down 2.19% suggests rotation into custom silicon infrastructure, not sector-wide semiconductor capitulation. Third: Volume at 0.36x 30-day average across the entire chain indicates this is noise liquidation, not conviction selling — the thesis remains unshaken by institutional flows.",
+  "key_assumption": "Hyperscalers' custom ASIC roadmaps (Google TPU, Meta MTIA, Apple Neural Engine) continue to drive incremental Ethernet switching and networking ASIC demand for AVGO, independent of NVDA's GPU cycle. This decoupling must be real and durable, not a temporary rotation that reverses when NVDA stabilizes.",
+  "regime_sensitivity": "In low_vix (current regime at 18.83), this call holds with full conviction — noise selling on light volume is a gift. In high_vix (above 25), the entire thematic growth layer (NVDA, TSM, AVGO, LITE) compresses together on risk-off flows, and AVGO's parallel positioning offers no hedge. The call remains ACCUMULATE but confidence drops to 3 if VIX spikes above 28, as sector liquidation overrides thesis divergence.",
+  "watch_items": [
+    "AVGO earnings guidance or analyst commentary explicitly walking back custom silicon design wins or hyperscaler contract renewal rates — this would invalidate the core thesis that custom chips drive incremental networking demand independent of NVDA.",
+    "AVGO underperforming NVDA by more than 500 bps over a 10-day period on elevated volume (above 1.2x 30-day average) — this would signal the market is pricing out the decoupling thesis and rotating back into pure GPU demand, not custom infrastructure."
+  ]
+}
+```

@@ -1,0 +1,19 @@
+```json
+{
+  "persona": "pragmatist",
+  "ticker": "TSM",
+  "direction": "HOLD",
+  "confidence": 2,
+  "statistical_anchor": "TSM down 4.45% over 5 days but holding above 50-day MA ($391.04) at $427.5 (9.3% cushion). Current session shows -0.13% on 0.37x volume — noise, not conviction. Streak of 1 down session suggests momentum exhaustion, not acceleration. Price at 0.42 position in 10-day range indicates mid-range equilibrium, not directional commitment.",
+  "volume_assessment": "Today's volume is 37% of 30-day average — thin tape noise. The 5-day drawdown (-4.45%) lacks conviction backing. Low volume across entire chain (NVDA, AVGO, LITE all low volume) signals sector-wide tape thinness, not TSM-specific selling pressure. Move durability is poor; any reversal on normal volume would invalidate the downtrend.",
+  "trend_assessment": "Short-term momentum is negative (3-day: -4.07%, 5-day: -4.45%) but structural support is intact. Price remains 9.3% above 50-day MA ($391.04), indicating the intermediate trend (50-day) is still up. Streak of only 1 down session means no momentum cascade. Position at 0.42 in 10-day range (midpoint between $412.32 low and $446.69 high) shows price has not broken into either tail — this is equilibrium, not directional exhaustion.",
+  "regime_context": "Fed paused, rates stable at 4.2%, USD/SGD stable at 1.34. VIX at 18.83 in normal regime. This macro backdrop historically supports semiconductor valuations without compression. No rate shock or dollar spike to force multiple contraction. Taiwan Strait geopolitical risk remains structurally present but no new escalation signals this week — risk is priced in, not activated.",
+  "watch_items": [
+    "Break below 50-day MA at $391.04 on volume >0.8x average — would signal loss of intermediate support and warrant REDUCE",
+    "Sustained volume >1.2x average on down days — would indicate conviction selling vs. current noise; absence of this through next 2-3 sessions keeps HOLD intact",
+    "NVDA or AVGO break below their 50-day MAs — TSM is midstream; upstream weakness on conviction volume would precede TSM weakness and is the leading indicator to watch",
+    "CoWoS capacity utilisation data or guidance revision in next earnings — thesis anchor; absence of negative signal supports structural HOLD",
+    "Taiwan Strait escalation headline — permanent tail risk; monitor but do not overweight intra-week noise"
+  ]
+}
+```

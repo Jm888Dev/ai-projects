@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "black_swan",
+  "ticker": "NVDA",
+  "direction": "REDUCE",
+  "confidence": 2,
+  "unmapped_risk": "A coordinated US-EU export control tightening targeting not just China but also allied nations' advanced AI clusters (Japan, South Korea, Singapore) creates a sudden 30-40% addressable market contraction for NVDA's data centre segment. This is unmapped because current consensus assumes export controls target only China; a broader allied-nation restriction would eliminate the 'workaround' narrative and force hyperscalers to choose between regulatory compliance and CapEx plans, collapsing near-term Blackwell demand.",
+  "underweighted_risk": "TSM's CoWoS capacity constraint is systematically underweighted as a tail risk. NVDA's Blackwell ramp depends on TSM's willingness to allocate scarce advanced packaging capacity. If TSM prioritizes Apple, AMD, or other customers under margin pressure, NVDA faces a supply-side revenue miss that looks like demand destruction but is actually allocation warfare. The market prices TSM as a passive supplier; it is not.",
+  "structural_fragility": "NVDA's position as demand anchor is inverted: NVDA is actually dependent on TSM's capacity allocation decisions, which are driven by margin optimization, not NVDA's pull. If TSM's gross margin on advanced packaging falls below 45% (currently ~50%), TSM will ration CoWoS to highest-margin customers. NVDA's 'demand anchor' status disappears if it becomes a margin-dilutive customer. This inversion is structurally hidden because NVDA controls the narrative, not the supply chain.",
+  "contagion_path": "NVDA supply miss → TSM guidance cut (CoWoS allocation revision) → AVGO demand miss (fewer Blackwell clusters = fewer networking chips) → LITE revenue miss (optical interconnects for clusters that never materialized) → SMH drawdown (all three are top holdings) → portfolio thesis-level event. The contagion is not demand-driven; it is allocation-driven. QQQ and G3B.SI remain insulated because hyperscalers' software roadmaps and Singapore banking are independent of NVDA's supply position.",
+  "watch_items": [
+    "TSM's next earnings call: listen for CoWoS capacity allocation language and gross margin guidance. A margin guide below 48% is the leading indicator that TSM is rationing NVDA capacity.",
+    "NVDA's next data centre guidance: watch for sequential growth rate deceleration in Blackwell allocation announcements. A guidance miss on Blackwell units (not ASP) signals supply constraint, not demand weakness — this is the moment the inversion becomes visible."
+  ]
+}
+```

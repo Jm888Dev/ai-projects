@@ -1,0 +1,19 @@
+```json
+{
+  "persona": "black_swan",
+  "ticker": "SMH",
+  "direction": "REDUCE",
+  "confidence": 2,
+  "unmapped_risk": "A coordinated US-Taiwan semiconductor export control expansion (targeting not just advanced nodes but mature node packaging and CoWoS capacity) announced without warning during a geopolitical flare-up would immediately force TSM to halt shipments to US hyperscalers. Since SMH holds TSM at ~10% and NVDA at ~20%, and NVDA depends on TSM's CoWoS for production, the shock would cascade through both holdings simultaneously with no time for portfolio rebalancing. The mechanism is not Taiwan invasion risk — it is regulatory sudden-death via export control ratchet during a crisis moment when political will to act is highest.",
+  "underweighted_risk": "The market prices Taiwan Strait geopolitical risk as a tail event with low probability. But the structural reality is that TSM manufactures >90% of advanced logic chips globally, and US hyperscalers (NVDA's primary customers) have zero alternative fabs for CoWoS production at scale. A 72-hour Taiwan Strait closure or military exercise that triggers force majeure on TSM shipments does not require invasion — it requires only a credible blockade signal. The market assumes this is unlikely; the market is wrong about the conditional impact if it occurs. SMH would not fall 10% — it would fall 30%+ within 48 hours because the supply chain has no redundancy and no time buffer.",
+  "structural_fragility": "SMH's diversification claim masks a single point of failure: TSM's geographic and contractual monopoly on advanced chip production. NVDA (20% of SMH) has no alternative fab for CoWoS. AVGO (also in SMH) depends on TSM for advanced packaging. LITE (photonics for NVDA clusters) has no customer without NVDA's production. The ETF holds 50+ stocks but the top 3-4 holdings are structurally linked through TSM as the production floor. A TSM supply shock is not a semiconductor sector downturn — it is a supply chain extinction event for a specific node/package type that has no backup.",
+  "contagion_path": "TSM force majeure (geopolitical or regulatory trigger) → NVDA unable to fulfill hyperscaler orders → NVDA guidance cut → SMH falls 25-35% (TSM and NVDA holdings crater, broader semiconductor weakness follows). Secondary contagion: AVGO falls 15-20% (custom silicon for hyperscalers stalls). LITE falls 20-30% (no NVDA clusters to equip). QQQ falls 5-8% (hyperscaler capex guidance cut, but software layer has less direct exposure). G3B.SI rises 2-4% (flight to stability, Singapore banking dividends become relative safe haven). The shock does not require a war — a 72-hour Strait closure announcement during a crisis moment is sufficient.",
+  "watch_items": [
+    "Taiwan Strait military exercise announcements or PLA naval activity near shipping lanes — any exercise lasting >48 hours is a red flag for force majeure risk",
+    "US State Department or Commerce Department statements on semiconductor export controls — any language about 'mature node' or 'packaging' restrictions beyond current advanced-node rules is a warning shot",
+    "TSM forward guidance or customer communication signals — any mention of 'supply constraints' or 'force majeure' clauses in earnings calls or investor updates",
+    "NVDA customer concentration data — any disclosure showing >40% of revenue from single hyperscaler increases TSM supply shock impact",
+    "SMH vs TSM divergence intraday — if SMH drops >2% while TSM holds flat, it signals market is pricing contagion beyond TSM itself (regulatory shock, not supply shock)"
+  ]
+}
+```

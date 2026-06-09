@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bear",
+  "ticker": "LITE",
+  "direction": "REDUCE",
+  "confidence": 4,
+  "primary_argument": "LITE is down 5.44% on low volume (0.4x average) while its upstream demand anchor NVDA is down only 0.75%, signaling that LITE is experiencing idiosyncratic selling pressure unrelated to chain health — a classic deleveraging signal in a frontier position that lacks institutional conviction.",
+  "supporting_evidence": "LITE has fallen 13.0% over 5 days while NVDA is flat and TSM down only 0.13%, indicating the photonics thesis is decoupling downward from the semiconductor chain it depends on; volume at 0.4x 30-day average on a 5.4% down day suggests weak institutional participation in the sell-off, characteristic of forced liquidation or thesis abandonment rather than informed rebalancing; LITE is now only 0.23 into its 10-day range (near the low at $854.96) despite no macro event, regulatory announcement, or AI architecture shift to justify the divergence.",
+  "key_assumption": "The bull case assumes that optical interconnect adoption is inevitable and that LITE's position as a pure-play beneficiary is defensible. The bear case: adoption timing is uncertain, hyperscaler procurement decisions are not yet locked, and LITE's customer concentration (flagged as a watch item) means a single customer delay or architectural pivot by NVDA/TSMC can crater guidance. The thesis also assumes LITE's margins hold through a commoditization cycle — photonics is moving from specialty to infrastructure, which historically compresses multiples and unit economics.",
+  "regime_sensitivity": "This bear call strengthens in a high_vix crisis regime — LITE would face forced selling as a small-cap, illiquid frontier position with no dividend or buyback support. In the current low_vix, normal regime, the call is still valid but relies more on thesis-integrity deterioration (NVDA architecture shift, customer concentration risk) than on panic. The 0.4x volume signal is more damaging in low_vix because it indicates voluntary abandonment, not forced liquidation.",
+  "watch_items": [
+    "NVDA Blackwell NVLink density announcement or next earnings guidance shows no material increase in optical interconnect requirements, or signals a shift toward chiplet-level copper solutions — this would directly invalidate LITE's core thesis activation trigger",
+    "LITE reports next earnings with guidance that reveals >40% customer concentration (single hyperscaler) or flat/declining optical interconnect orders YoY despite NVDA cluster growth — this would confirm the adoption timeline is broken and thesis is stalling"
+  ]
+}
+```

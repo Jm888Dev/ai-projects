@@ -1,0 +1,17 @@
+```json
+{
+  "persona": "pragmatist",
+  "ticker": "NVDA",
+  "direction": "HOLD",
+  "confidence": 2,
+  "statistical_anchor": "NVDA is down 0.75% on volume at 0.31x 30-day average (conviction deficit), but remains above its 50-day MA of $203.97. The 3-day return is -4.58% and 5-day is -6.25%, indicating a short-term downtrend, yet price sits only 6.9% below the 10-day high of $224.1 and at the 0.19 position in its recent range (closer to lows than highs). The data is mixed: momentum is negative but not violent, and conviction volume is absent.",
+  "volume_assessment": "Volume is thin (0.31x 30-day average) and flagged as low. The -0.75% decline is occurring on noise-tier volume, not conviction selling. This suggests the move lacks durability in either direction — the tape is not backing the price action with institutional commitment. A sustained move lower would require volume to spike above 1.0x average to signal genuine selling pressure.",
+  "trend_assessment": "Short-term momentum is negative: 3-day and 5-day returns are both deeply negative (-4.58%, -6.25%), and the streak shows 1 session down. However, price remains above the 50-day MA ($203.97), which is a technical support level. Position in range (0.19) indicates price is in the lower third of its recent 10-day band but not at the absolute low. The trend is down, but not yet in a breakdown posture — it is testing support rather than breaking through it.",
+  "regime_context": "The macro regime is stable: Fed is data-dependent and paused, 10Y UST is stable at 4.2%, USD is stable, and there are no new geopolitical escalations or export control announcements. VIX is at 18.83 in normal regime. In a stable macro environment with normal volatility, semiconductor demand-anchor stocks like NVDA typically hold above their moving averages unless there is a catalyst-driven repricing. The absence of new AI research announcements or hyperscaler CapEx guidance updates removes upside catalysts, but also removes downside catalysts. This is a period of stasis.",
+  "watch_items": [
+    "Volume spike above 1.0x 30-day average on a down day — would signal conviction selling and raise confidence in a sustained lower move. Conversely, volume spike on an up day would signal reversal conviction.",
+    "Break below the 50-day MA at $203.97 — would convert the current test into a breakdown and shift the statistical picture from neutral to bearish. This is the next quantitative threshold.",
+    "Earnings or hyperscaler CapEx guidance announcement — any update on data centre revenue or Blackwell allocation would introduce a new information regime and override the current stasis signal."
+  ]
+}
+```

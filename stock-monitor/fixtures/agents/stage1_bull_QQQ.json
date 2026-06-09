@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bull",
+  "ticker": "QQQ",
+  "direction": "ACCUMULATE",
+  "confidence": 4,
+  "primary_argument": "QQQ's -0.69% move versus SMH's -0.92% decline signals software/platform resilience outperforming semiconductor weakness, validating the structural thesis that hyperscaler AI adoption benefits the application layer faster than the hardware cycle, and today's low-volume pullback is a capitulation buy in a core stability position.",
+  "supporting_evidence": "QQQ trades 23 basis points above SMH's decline today despite identical low-volume regime across the chain, indicating selective strength in Microsoft, Google, Meta, and Amazon—the four largest QQQ components funding foundational AI. QQQ remains 5.87% above its 50-day moving average ($670.65) and only 4.03% below the 10-day high ($746.16), positioning it in the upper half of its recent range (0.27 position = near support, not capitulation). Volume at 0.44x 30-day average confirms this is a quiet, low-conviction selloff, not institutional repositioning.",
+  "key_assumption": "Hyperscaler AI infrastructure spending remains committed and accelerating despite near-term semiconductor cycle weakness, meaning software/platform companies will deliver earnings growth that justifies their valuation premium relative to hardware suppliers over the next two quarters.",
+  "regime_sensitivity": "This call strengthens in low_vix regimes (current: VIX 18.83, normal) because QQQ's software/platform leverage to AI adoption compounds in risk-on environments. If VIX moves to high_vix (>25), the bull case remains intact but confidence shifts from ACCUMULATE to HOLD—QQQ will outperform SMH but may face absolute pressure as growth multiples compress. The divergence signal becomes more valuable as a hedge, not as a primary accumulation thesis.",
+  "watch_items": [
+    "Microsoft or Google earnings guidance signals a slowdown in AI infrastructure spending or cloud CapEx guidance—if either reports flat or declining AI-related revenue growth in next earnings cycle, the entire software/platform thesis collapses and QQQ underperforms SMH by >200 bps.",
+    "QQQ breaks below $705 (10-day low) on volume >1.2x 30-day average—this would signal institutional liquidation of core stability positions and would invalidate the thesis that this is a low-conviction pullback; would trigger reassessment to HOLD pending regime stabilization."
+  ]
+}
+```

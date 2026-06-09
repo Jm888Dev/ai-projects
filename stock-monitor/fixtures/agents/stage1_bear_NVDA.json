@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bear",
+  "ticker": "NVDA",
+  "direction": "REDUCE",
+  "confidence": 4,
+  "primary_argument": "NVDA is rolling over into a demand-anchor crisis: the 3-day -4.58% and 5-day -6.25% declines signal deteriorating conviction in the Blackwell cycle, while the entire downstream chain (AVGO -2.19%, LITE -5.44%) is already pricing in margin compression and allocation disappointment.",
+  "supporting_evidence": "Volume is critically anemic at 0.31x 30-day average despite a -0.75% daily move, indicating weak institutional conviction in either direction—a hallmark of distribution before larger declines. The 10-day range shows NVDA at 0.19 position (near the low), down 6.9% from the 10-day high of $224.1, yet the 50-day MA at $203.97 is being tested, signaling the intermediate trend is breaking. Most damaging: LITE, the photonics play that should benefit from Blackwell cluster buildout, has collapsed -5.44% today on low volume—this is not a sector rotation, it is a thesis-level demand signal that hyperscaler allocation is softening.",
+  "key_assumption": "The bull case assumes Blackwell allocation announcements and non-US sovereign AI demand will sustain hyperscaler CapEx guidance through 2026. The bear case: there is no new catalyst on the horizon (no model releases, no CapEx guidance updates, no export control relief), and the 3-week decline coupled with downstream chain weakness (AVGO, LITE) suggests the market has already front-run Blackwell upside and is now pricing in realistic allocation constraints and margin pressure from custom silicon competition (AMD gains noted in thesis watch list).",
+  "regime_sensitivity": "This bear call strengthens in a low_vix regime. VIX is at 18.83 (normal), which means there is no fear bid to support NVDA as a safe haven. In a high_vix crisis, NVDA might rally as a liquidity anchor; in this benign regime, the -4.58% 3-day decline is pure fundamental deterioration, not forced selling. The thesis is vulnerable precisely because macro is stable—there is no external scapegoat for the weakness.",
+  "watch_items": [
+    "NVDA data centre revenue guidance at next earnings or analyst day falls below consensus by >5% or Blackwell allocation delays beyond Q3 2026—this would confirm the demand anchor is cracking and cascade to TSM, AVGO, and LITE immediately.",
+    "LITE closes below $800 (currently $843.50, -5.44% today) on sustained low volume over the next 3 sessions—this would confirm that photonics infrastructure demand is not keeping pace with GPU deployment, signaling hyperscaler CapEx is decelerating, not accelerating."
+  ]
+}
+```

@@ -1,43 +1,113 @@
 {
   "_description": "Normal trading day fixture. Semiconductor chain green, VIX stable, no major signals. Use for baseline agent prompt development and testing.",
   "_scenario": "normal_day",
-  "_created": "2026-06-08",
-
+  "_created": "2026-06-09",
   "prices": [
-      {"ticker": "NVDA",   "instrument_type": "equity", "price": 221.38, "prev_close": 230.23, "pct_change": 1.04, "volume": 45200000,  "volume_vs_avg": 1.19, "volume_signal": "elevated"},
-      {"ticker": "AVGO",   "instrument_type": "equity", "price": 383.42, "prev_close": 387.25, "pct_change": 1.00, "volume": 8100000,   "volume_vs_avg": 0.92, "volume_signal": "normal"},
-      {"ticker": "LITE",   "instrument_type": "equity", "price": 860.67, "prev_close": 869.27, "pct_change": 1.00, "volume": 1200000,   "volume_vs_avg": 1.41, "volume_signal": "normal"},
-      {"ticker": "TSM",    "instrument_type": "equity", "price": 450.23, "prev_close": 454.73, "pct_change": 1.00, "volume": 12400000,  "volume_vs_avg": 0.88, "volume_signal": "normal"},
-      {"ticker": "QQQ",    "instrument_type": "etf",    "price": 669.12, "prev_close": 675.81, "pct_change": 1.00, "volume": 32100000,  "volume_vs_avg": 1.05, "volume_signal": "normal"},
-      {"ticker": "SMH",    "instrument_type": "etf",    "price": 509.87, "prev_close": 514.96, "pct_change": 1.00, "volume": 5800000,   "volume_vs_avg": 0.76, "volume_signal": "normal"},
-      {"ticker": "G3B.SI", "instrument_type": "etf",    "price": 5.18,   "prev_close": 5.23,   "pct_change": 1.00, "volume": 890000,    "volume_vs_avg": 1.02, "volume_signal": "normal"},
-      {"ticker": "^VIX",   "instrument_type": "index",  "price": 14.83,  "prev_close": 14.97,  "pct_change": 1.00, "volume": null,       "volume_vs_avg": null,  "volume_signal": "unavailable"}
+    {
+      "ticker": "NVDA",
+      "instrument_type": "equity",
+      "price": 206.1,
+      "prev_close": 207.65,
+      "pct_change": -0.7464,
+      "volume": 50704659,
+      "volume_vs_avg": 0.31,
+      "volume_signal": "low"
+    },
+    {
+      "ticker": "AVGO",
+      "instrument_type": "equity",
+      "price": 387.52,
+      "prev_close": 396.2,
+      "pct_change": -2.1908,
+      "volume": 9102433,
+      "volume_vs_avg": 0.36,
+      "volume_signal": "low"
+    },
+    {
+      "ticker": "LITE",
+      "instrument_type": "equity",
+      "price": 843.5001,
+      "prev_close": 892.0196,
+      "pct_change": -5.4393,
+      "volume": 2542240,
+      "volume_vs_avg": 0.4,
+      "volume_signal": "low"
+    },
+    {
+      "ticker": "TSM",
+      "instrument_type": "equity",
+      "price": 427.5,
+      "prev_close": 428.04,
+      "pct_change": -0.1262,
+      "volume": 4961963,
+      "volume_vs_avg": 0.37,
+      "volume_signal": "low"
+    },
+    {
+      "ticker": "QQQ",
+      "instrument_type": "etf",
+      "price": 710.485,
+      "prev_close": 715.3972,
+      "pct_change": -0.6866,
+      "volume": 21973722,
+      "volume_vs_avg": 0.44,
+      "volume_signal": "low"
+    },
+    {
+      "ticker": "SMH",
+      "instrument_type": "etf",
+      "price": 592.13,
+      "prev_close": 597.65,
+      "pct_change": -0.9236,
+      "volume": 5852416,
+      "volume_vs_avg": 0.6,
+      "volume_signal": "low"
+    },
+    {
+      "ticker": "G3B.SI",
+      "instrument_type": "etf",
+      "price": 5.218,
+      "prev_close": 5.162,
+      "pct_change": 1.0848,
+      "volume": 303717,
+      "volume_vs_avg": 0.88,
+      "volume_signal": "normal"
+    },
+    {
+      "ticker": "^VIX",
+      "instrument_type": "index",
+      "price": 18.83,
+      "prev_close": 18.92,
+      "pct_change": -0.4757,
+      "volume": null,
+      "volume_vs_avg": null,
+      "volume_signal": "unavailable"
+    }
   ],
-
   "intelligence": {
     "macro_regime": {
-      "fed_stance":       "data-dependent, paused at current rate",
+      "fed_stance": "data-dependent, paused at current rate",
       "rate_environment": "10Y UST at 4.2%, stable",
-      "dollar_strength":  "USD/SGD 1.34, stable",
+      "dollar_strength": "USD/SGD 1.34, stable",
       "key_macro_signal": "No major macro events this week"
     },
     "geopolitical_signals": [
-      "Taiwan strait — no new escalation signals this week",
-      "US-China export controls — no new restrictions announced",
-      "Singapore — MAS policy stance unchanged"
+      "Taiwan strait \u2014 no new escalation signals this week",
+      "US-China export controls \u2014 no new restrictions announced",
+      "Singapore \u2014 MAS policy stance unchanged"
     ],
     "ai_research_signals": [
       "No major model releases or architecture announcements this week",
-      "Hyperscaler CapEx guidance — no updates since last earnings cycle"
+      "Hyperscaler CapEx guidance \u2014 no updates since last earnings cycle"
     ],
     "regulatory_signals": [
       "No new semiconductor export control announcements",
-      "EU AI Act implementation — no material updates this week"
+      "EU AI Act implementation \u2014 no material updates this week"
     ],
     "sentiment_signals": {
-      "retail_positioning":   "neutral — no strong directional bias observed",
-      "institutional_flows":  "no notable rotation signals this week",
-      "contrarian_indicator": "AAII bull-bear spread — not checked this session"
+      "retail_positioning": "neutral \u2014 no strong directional bias observed",
+      "institutional_flows": "no notable rotation signals this week",
+      "contrarian_indicator": "AAII bull-bear spread \u2014 not checked this session"
     }
   }
 }

@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bear",
+  "ticker": "TSM",
+  "direction": "REDUCE",
+  "confidence": 3,
+  "primary_argument": "TSM is trapped in a semiconductor sector drawdown with no volume conviction to support a reversal, while downstream photonics weakness (LITE -5.44%) signals demand destruction in the AI infrastructure layer that justifies the thesis's core vulnerability.",
+  "supporting_evidence": "Volume is 0.37x 30-day average on a -0.13% down day, indicating passive capitulation rather than accumulation into weakness; LITE has fallen 5.44% today while TSM is only -0.13%, breaking the assumed tight coupling between production floor and photonics demand; the entire semiconductor cohort (SMH -0.92%, AVGO -2.19%, NVDA -0.75%) is moving lower in unison with normal VIX, suggesting sector-wide pressure unrelated to geopolitical or macro shock.",
+  "key_assumption": "The bull case assumes CoWoS capacity constraints are the binding constraint on AI scaling and that TSMC guidance on AI revenue mix will remain elevated. This is fragile because: (1) hyperscaler CapEx guidance has not been updated since the last earnings cycle, suggesting either saturation or deceleration in demand signals; (2) LITE's 5.44% drop today implies photonics bookings are weakening, which would precede a TSMC guidance miss on AI mix; (3) the thesis treats capacity as the ceiling, but if demand softens, capacity becomes irrelevant and TSMC reverts to a cyclical commodity play.",
+  "regime_sensitivity": "This bear call strengthens in a low_vix regime (current state: VIX 18.83, normal). In low_vix, sector rotation and demand destruction happen without panic — the market quietly reprices capacity assumptions downward. In a high_vix crisis, TSMC would spike on flight-to-safety into semiconductor essentiality and geopolitical hedge demand, which would temporarily invalidate this bear case. Current regime favors the bear.",
+  "watch_items": [
+    "TSMC next earnings guidance on AI revenue as a percentage of total revenue: if AI mix declines QoQ or guidance is flat-to-down, the capacity-constraint thesis collapses and TSM re-rates as a cyclical play; target: watch for <50% AI mix or QoQ decline",
+    "CoWoS utilization rate disclosure in next earnings call: if utilization drops below 85% or TSMC guides to reduced CoWoS expansion capex, it signals demand destruction in advanced packaging and confirms photonics weakness (LITE signal) is structural, not transient; target: <85% utilization or capex guidance reduction"
+  ]
+}
+```

@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bull",
+  "ticker": "LITE",
+  "direction": "ACCUMULATE",
+  "confidence": 4,
+  "primary_argument": "LITE's 5.4% drawdown is a capitulation flush in a structurally intact thesis — the copper-to-light transition is non-discretionary infrastructure, NVDA cluster density is accelerating, and today's low-volume decline (-0.4x 30-day average) signals weak conviction selling rather than thesis invalidation.",
+  "supporting_evidence": "NVDA down only -0.75% and TSM down only -0.13% today, confirming upstream chain health remains intact; LITE trades 13.0% below its 10-day high of $1029.15 but still above its 50-day MA of $887.51, positioning it for mean reversion within the normal volatility regime; the 5-day -13.0% drawdown is a 3-sigma move on low volume, textbook panic capitulation in a frontier position.",
+  "key_assumption": "The thesis assumes that hyperscaler optical interconnect adoption is mandatory at the scale NVDA clusters are reaching — if hyperscalers can sustain current cluster performance with copper-only architectures or delay optical migration beyond 12 months, the entire LITE upside case collapses.",
+  "regime_sensitivity": "In low-VIX regime (current state at 18.83), this call holds at high conviction — frontier bets compress during calm markets and LITE's drawdown is noise. If VIX spikes above 25, institutional deleveraging could force LITE lower regardless of thesis health, and the small position sizing becomes critical to portfolio resilience. The call weakens only if VIX rise correlates with NVDA weakness, signaling demand destruction rather than liquidity event.",
+  "watch_items": [
+    "NVDA cluster architecture announcement revealing Blackwell NVLink density below 400Gbps per socket, or any guidance suggesting optical interconnect adoption delay beyond Q4 2026 — this directly invalidates the mandatory-infrastructure thesis",
+    "LITE earnings guidance showing >40% customer concentration in single hyperscaler with flat or negative YoY optical interconnect order growth — signals demand is weaker than thesis assumes and margin compression risk is real"
+  ]
+}
+```

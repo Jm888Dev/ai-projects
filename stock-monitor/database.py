@@ -257,6 +257,47 @@ CREATE TABLE IF NOT EXISTS balance_ledger (
 )
 """
 
+# AI-generated proposed thesis updates awaiting human review
+# status values: pending / approved / rejected / modified
+# trigger_signal: the signal that prompted this draft (e.g. 'portfolio_relationship_alert')
+# trigger_source: what detected the change (e.g. 'correlation_check', 'feed_match', 'human')
+# confidence: 1-5, how strongly the AI believes this update is warranted
+CREATE_THESIS_DRAFTS_TABLE = """
+CREATE TABLE IF NOT EXISTS thesis_drafts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp       TEXT NOT NULL,
+    ticker          TEXT NOT NULL,
+    section         TEXT NOT NULL,
+    current_text    TEXT,
+    proposed_text   TEXT NOT NULL,
+    confidence      INTEGER,
+    trigger_signal  TEXT,
+    trigger_source  TEXT,
+    rationale       TEXT,
+    status          TEXT NOT NULL DEFAULT 'pending'
+)
+"""
+
+# Human decisions on thesis drafts — the review ledger
+# action values: approved / rejected / modified
+# modified_text: only populated when action = 'modified' — the human's version
+# reason: why the human accepted, rejected, or changed the draft
+# reviewer: who reviewed (defaults to 'human' — future: could be a persona name)
+# source: ai_draft (system-generated) or human_initiated (manually triggered)
+CREATE_THESIS_REVIEWS_TABLE = """
+CREATE TABLE IF NOT EXISTS thesis_reviews (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp       TEXT NOT NULL,
+    draft_id        INTEGER NOT NULL,
+    ticker          TEXT NOT NULL,
+    section         TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    modified_text   TEXT,
+    reason          TEXT,
+    reviewer        TEXT DEFAULT 'human',
+    source          TEXT DEFAULT 'ai_draft'
+)
+"""
 
 # ─────────────────────────────────────────────────────────────
 # CONNECTION
@@ -307,6 +348,10 @@ def initialise_db():
         cursor.execute(CREATE_LLM_CALLS_TABLE)
         cursor.execute(CREATE_BALANCE_LEDGER_TABLE)
 
+        # Thesis maintenance
+        cursor.execute(CREATE_THESIS_DRAFTS_TABLE)
+        cursor.execute(CREATE_THESIS_REVIEWS_TABLE)
+
         # Seed known models
         # INSERT OR IGNORE — safe to re-run, never overwrites existing rows
         known_models = [
@@ -352,9 +397,18 @@ def compute_call_cost(model_used, input_tokens, output_tokens):
     permanently — historical cost data stays accurate even if
     pricing changes later.
     """
+    if model_used and model_used.startswith("fixture:"):
+        # Fixture calls have no API cost by design — zero is correct, not a warning
+        return 0.0
+
     pricing = config.MODEL_PRICING.get(model_used)
     if pricing is None:
-        print(f"[DB] WARNING: no pricing found for model '{model_used}' — cost set to 0")
+        # Unknown model — cost cannot be computed and will be missing from run summary
+        # Action: add this model to MODEL_PRICING in config.py
+        # Format: "model-name": {"input": X.XX, "output": X.XX} per million tokens
+        print(f"[DB] WARNING: no pricing found for model '{model_used}' "
+              f"— cost recorded as $0.00. "
+              f"Fix: add '{model_used}' to MODEL_PRICING in config.py.")
         return 0.0
 
     input_cost  = (input_tokens  / 1_000_000) * pricing["input"]

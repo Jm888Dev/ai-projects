@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "pragmatist",
+  "ticker": "QQQ",
+  "direction": "HOLD",
+  "confidence": 2,
+  "statistical_anchor": "QQQ down 0.69% on volume at 0.44x 30-day average (conviction absent). 3-day return -3.31%, 5-day return -4.03% with streak of only 1 session suggests momentum exhaustion rather than directional conviction. Price at $710.49 sits 4.03% below 10-day high ($746.16) but remains above 50-day MA ($670.65), placing it in middle-to-lower portion of recent range (position 0.27). No statistical edge in either direction over next 3-5 sessions.",
+  "volume_assessment": "Volume is noise, not conviction. At 0.44x 30-day average with explicit low volume signal, today's -0.69% decline lacks institutional backing. This is thin-tape price action. A move of this magnitude on sub-average volume suggests the decline is not durable and carries elevated risk of reversal on normal volume. Conviction sellers are absent.",
+  "trend_assessment": "Short-term momentum is negative but weakening. The 3-day and 5-day returns (-3.31%, -4.03%) show a downtrend, but the streak counter at 1 session indicates the sell-off has already stalled — price did not close lower today relative to yesterday's reversal pattern. QQQ is above its 50-day MA ($670.65), which historically acts as a soft support floor for this ETF. Position in range at 0.27 (closer to low than high) suggests price has moved into a zone where mean-reversion pressure typically builds. Momentum is neither building nor exhausting decisively — it is neutral.",
+  "regime_context": "Macro regime is benign and non-supportive of directional conviction. Fed is data-dependent with rates paused at 4.2% UST — a neutral holding pattern. VIX at 18.83 (normal regime) removes fear premium and reduces hedging demand that might otherwise stabilize large-cap tech. In this regime, QQQ typically consolidates around moving averages rather than trending decisively. No macro catalyst is present this week to break the stalemate. The stable dollar (USD/SGD 1.34) and absence of geopolitical escalation signals remove tail-risk hedging tailwinds that sometimes drive tech inflows.",
+  "watch_items": [
+    "Volume reversal threshold: If QQQ closes above $720 on volume >1.0x 30-day average, conviction is returning and momentum reversal to upside becomes statistically likely. Below $705 (10-day low) on elevated volume signals breakdown below 50-day MA support.",
+    "50-day MA breach: Price closing below $670.65 (50-day MA) would signal loss of intermediate support and shift statistical probability toward REDUCE. Conversely, a close above $725 with volume >0.8x average would suggest accumulation phase and justify shift to ACCUMULATE."
+  ]
+}
+```

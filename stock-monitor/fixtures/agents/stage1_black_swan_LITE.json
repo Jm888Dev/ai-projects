@@ -1,0 +1,18 @@
+```json
+{
+  "persona": "black_swan",
+  "ticker": "LITE",
+  "direction": "REDUCE",
+  "confidence": 2,
+  "unmapped_risk": "TSMC force majeure event triggered by Taiwan Strait blockade (72+ hour shipping lane closure during military exercise) cascades to LITE through broken CoWoS supply chain. NVDA cannot fulfill cluster orders → hyperscalers freeze optical interconnect capex mid-quarter → LITE guidance collapse and customer concentration exposure becomes visible retroactively. Market reprices LITE as dependent on a single fab geography with zero hedging.",
+  "underweighted_risk": "LITE's entire thesis depends on NVDA Blackwell NVLink density scaling as announced. If NVDA's next architecture announcement reveals density plateau or shift to chiplet-based interconnects that reduce per-cluster optical port requirements, LITE's TAM contracts by 30-40% overnight. The market prices LITE as a pure-play on optical adoption acceleration, not on specific NVDA architecture dependency. A single architecture pivot breaks the thesis without any earnings miss or supply chain event.",
+  "structural_fragility": "LITE is a downstream bet on two upstream black boxes (NVDA demand + TSMC production capacity) with no direct visibility into either. The thesis activates only if both remain healthy. LITE has no alternative fab relationships, no geographic diversification of customer concentration, and no hedging against NVDA architecture changes. A thesis-integrity failure in either upstream component becomes a 40%+ drawdown before it appears in LITE's own fundamentals. The company is structurally fragile because it has no control over the two variables that determine its addressable market.",
+  "contagion_path": "LITE tail risk → AVGO (parallel networking exposure, same hyperscaler customer base, same NVDA architecture dependency) → SMH (LITE is not a top-10 holding but AVGO is; SMH reprices semiconductor optics exposure downward) → QQQ (if hyperscaler capex guidance drops, impacts Microsoft, Google, Meta cloud infrastructure spending expectations). TSM and NVDA are insulated from LITE-specific risk but not from the upstream shock that would trigger LITE's tail risk.",
+  "watch_items": [
+    "NVDA Blackwell NVLink density announcement or architecture pivot — any signal that per-cluster optical port requirements are not scaling as expected",
+    "TSMC CoWoS utilization rate and lead times — a sudden jump in lead times or capacity constraints signals production floor stress that will cascade to LITE within 2-3 weeks",
+    "Hyperscaler optical interconnect capex guidance in earnings calls — listen for any softening or deferral language that suggests optical adoption is slowing relative to cluster deployment",
+    "LITE customer concentration disclosure in next earnings — if single customer represents >40% of revenue and that customer is NVDA-dependent, thesis fragility is confirmed"
+  ]
+}
+```

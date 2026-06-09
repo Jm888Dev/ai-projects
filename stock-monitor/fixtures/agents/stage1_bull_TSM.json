@@ -1,0 +1,16 @@
+```json
+{
+  "persona": "bull",
+  "ticker": "TSM",
+  "direction": "ACCUMULATE",
+  "confidence": 4,
+  "primary_argument": "TSM is the irreplaceable production chokepoint for AI chip scaling — every advanced Blackwell unit depends on TSMC CoWoS capacity — and today's weakness on low volume is a capitulation opportunity as the market discounts temporary macro noise while ignoring the structural capacity constraint that will drive pricing power and utilization recovery.",
+  "supporting_evidence": "TSM is trading 4.45% below its 10-day high of $446.69 on volume at only 0.37x the 30-day average, signaling weak conviction selling rather than fundamental deterioration. The entire semiconductor chain (NVDA -0.75%, AVGO -2.19%, LITE -5.44%, SMH -0.92%) is down on coordinated low volume, indicating sector-wide profit-taking rather than demand destruction. TSM remains above its 50-day MA of $391.04, maintaining the intermediate uptrend structure despite the 3-day drawdown of -4.07%.",
+  "key_assumption": "AI hyperscaler CapEx remains robust and CoWoS capacity utilization will tighten through 2026-2027 as Blackwell production ramps, forcing TSMC to raise pricing and utilization rates — this assumption requires that no major AI model breakthrough failure occurs and that geopolitical escalation in the Taiwan Strait does not materialize into actual supply disruption.",
+  "regime_sensitivity": "In a low_vix regime (current: 18.83, normal), this call holds at full conviction because the market is pricing in stability and TSM's structural supply advantage compounds. In a high_vix regime (VIX >25), the call weakens to HOLD at confidence 2-3 because Taiwan Strait risk becomes a live tail risk that reprices the entire position, and liquidity evaporates on low-volume days like today — TSM would become a forced-seller's market rather than a buyer's opportunity.",
+  "watch_items": [
+    "TSMC CoWoS capacity utilization falls below 70% for two consecutive quarters, or management guides capacity expansion timelines beyond 2027 — signals AI demand is decelerating faster than supply constraints can support pricing power.",
+    "Taiwan Strait escalation event (military exercises, formal sanctions, or export control expansion on advanced nodes) that triggers >10% single-day drawdown and closes below the 50-day MA of $391.04 — geopolitical tail risk materializes and structural chokepoint thesis becomes uninsurable."
+  ]
+}
+```

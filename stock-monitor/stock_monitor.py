@@ -22,7 +22,7 @@ _ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(_ROOT))           # gives access to shared/
 sys.path.insert(0, str(_ROOT / "stock-monitor"))  # gives access to config, database
 
-from shared.utils import extract_json, call_llm, update_market_history
+from shared.utils import extract_json, call_llm, update_market_history, save_price_fixtures
 from shared.data_sources import get_current_prices, get_intelligence_context
 
 from prompts.analyst_persona import (
@@ -103,6 +103,77 @@ def check_kill_triggers():
 
     return active_triggers
 
+def check_thesis_staleness():
+    """
+    Checks THESIS_LAST_REVIEWED and PORTFOLIO_SECTIONS_LAST_REVIEWED
+    against today's date. Flags any entry not reviewed in 30+ days.
+
+    Runs at session start after check_kill_triggers().
+    Non-blocking — prints warnings but never stops the pipeline.
+    Returns a list of stale items so the run summary can include them.
+
+    Why 30 days? Markets move fast enough that a thesis unchecked
+    for a month may no longer reflect current conditions. The flag
+    is a prompt to review, not an automatic action.
+    """
+    # today as a date object for clean comparison arithmetic
+    today = datetime.now().date()
+
+    # 30-day threshold — anything older than this gets flagged
+    STALE_THRESHOLD_DAYS = 30
+
+    stale_items = []  # collect all stale entries to return at the end
+
+    print("\n[STALENESS] Checking thesis review dates...")
+
+    # ── Check per-ticker thesis dates ──────────────────────
+    for ticker, last_reviewed_str in config.THESIS_LAST_REVIEWED.items():
+        # Parse the stored date string into a date object
+        # Format is YYYY-MM-DD — matches how we store it in config.py
+        last_reviewed = datetime.strptime(last_reviewed_str, "%Y-%m-%d").date()
+
+        # How many days since this thesis was last reviewed?
+        days_since = (today - last_reviewed).days
+
+        if days_since > STALE_THRESHOLD_DAYS:
+            # Flag it — print to console and add to stale_items list
+            print(f"[STALENESS] WARNING: {ticker} thesis not reviewed "
+                  f"in {days_since} days (last: {last_reviewed_str})")
+            stale_items.append({
+                "type":         "ticker_thesis",
+                "ticker":       ticker,
+                "last_reviewed": last_reviewed_str,
+                "days_since":   days_since,
+            })
+        else:
+            # Within threshold — confirm it is current, no action needed
+            print(f"[STALENESS] OK: {ticker} — {days_since} days since review")
+
+    # ── Check portfolio section dates ──────────────────────
+    for section, last_reviewed_str in config.PORTFOLIO_SECTIONS_LAST_REVIEWED.items():
+        last_reviewed = datetime.strptime(last_reviewed_str, "%Y-%m-%d").date()
+        days_since = (today - last_reviewed).days
+
+        if days_since > STALE_THRESHOLD_DAYS:
+            print(f"[STALENESS] WARNING: portfolio section '{section}' "
+                  f"not reviewed in {days_since} days (last: {last_reviewed_str})")
+            stale_items.append({
+                "type":         "portfolio_section",
+                "section":      section,
+                "last_reviewed": last_reviewed_str,
+                "days_since":   days_since,
+            })
+        else:
+            print(f"[STALENESS] OK: {section} — {days_since} days since review")
+
+    # ── Summary ────────────────────────────────────────────
+    if stale_items:
+        print(f"\n[STALENESS] {len(stale_items)} item(s) flagged for review.")
+    else:
+        print("\n[STALENESS] All thesis entries current.")
+
+    # Return the list so the run summary can include stale count
+    return stale_items
 
 # ─────────────────────────────────────────────────────────────
 # STEP 2 — DATA PACKAGE BUILDER
@@ -514,6 +585,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
         temperature=config.STAGE_1_TEMPERATURE,
         fallback_model=config.FALLBACK_MODEL,
         client=client,
+        call_type=f"stage1_{agent_name}_{ticker}",
     )
     duration = round(time.time() - start, 1)
 
@@ -625,6 +697,7 @@ def run_contrarian(stage1_outputs, data_package, ticker,
         temperature=config.STAGE_2_TEMPERATURE,
         fallback_model=config.FALLBACK_MODEL,
         client=client,
+        call_type=f"stage2_contrarian_{ticker}",
     )
     duration = round(time.time() - start, 1)
 
@@ -728,6 +801,7 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
         temperature=config.STAGE_3_TEMPERATURE,
         fallback_model=config.FALLBACK_MODEL,
         client=client,
+        call_type="stage3_meta_agent",
     )
     duration = round(time.time() - start, 1)
 
@@ -836,6 +910,7 @@ def run_translator(meta_output, run_id):
         temperature=config.TRANSLATOR_TEMPERATURE,
         fallback_model=config.FALLBACK_MODEL,
         client=client,
+        call_type="translator",
     )
     duration = round(time.time() - start, 1)
 
@@ -949,6 +1024,11 @@ def main():
     data_mode = "live" if config.USE_LIVE_DATA else "fixture"
     database.start_run(run_id, data_mode=data_mode)
 
+    # Record wall-clock start time so we can compute total run duration
+    # in the summary. time.time() returns seconds since epoch — subtract
+    # at the end to get elapsed seconds for the full pipeline.
+    run_start_time = time.time()
+
     # Accumulates token counts, durations, and cost across all calls
     stats = {
         "tickers_attempted":   0,
@@ -979,6 +1059,9 @@ def main():
         # injected into data packages before agents start reasoning
         print("Checking kill triggers...")
         active_kill_triggers = check_kill_triggers()
+        # Check thesis staleness after kill triggers
+        # Non-blocking — flags stale entries in run summary but never stops the run
+        stale_items = check_thesis_staleness()
 
         # ── Update market history (delta pull) ──
         # Fetches new trading days since last stored date.
@@ -1013,6 +1096,14 @@ def main():
 
         # ── Write prices to database ──
         database.write_prices(run_id, price_data)
+
+        # Auto-update price fixtures when running on live data.
+        # CAPTURE_LIVE_DATA_FOR_FIXTURES controls whether the file
+        # is actually overwritten — handled inside save_price_fixtures().
+        # Called unconditionally when USE_LIVE_DATA=True — the function
+        # respects the capture flag internally and does nothing if False.
+        if config.USE_LIVE_DATA:
+            save_price_fixtures(price_data)
 
         # ── Get VIX regime for tagging persona_calls ──
         vix_regime, vix_level = determine_vix_regime(price_data)
@@ -1165,7 +1256,12 @@ def main():
             with database.get_connection() as conn:
                 call_rows = conn.execute(
                     """
-                    SELECT call_type, model_used,
+                    SELECT call_type,
+                           CASE
+                               WHEN model_used LIKE 'fixture:%'
+                               THEN 'fixture'
+                               ELSE model_used
+                           END AS model_used,
                            SUM(input_tokens)  AS total_input,
                            SUM(output_tokens) AS total_output,
                            SUM(cost_usd)      AS total_cost,
@@ -1174,7 +1270,12 @@ def main():
                            SUM(truncated)     AS truncations
                     FROM llm_calls
                     WHERE run_id = ?
-                    GROUP BY call_type, model_used
+                    GROUP BY call_type,
+                           CASE
+                               WHEN model_used LIKE 'fixture:%'
+                               THEN 'fixture'
+                               ELSE model_used
+                           END
                     ORDER BY call_type
                     """,
                     (run_id,)
@@ -1188,25 +1289,35 @@ def main():
         total_truncations= sum(r["truncations"]  for r in call_rows)
 
         print("\n── Run Summary ──────────────────────────────────")
-        print(f"  Run ID     — {run_id}")
-        print(f"  Data mode  — {data_mode}")
-        print(f"  VIX regime — {vix_regime}")
-        print(f"  Tickers    — {stats['tickers_succeeded']} succeeded"
+        print(f"  Run ID       — {run_id}")
+        print(f"  Data mode    — {data_mode.upper()}")
+        print(f"  Agent mode   — {'FIXTURE' if not config.USE_LIVE_AGENTS else 'LIVE'}")
+        print(f"  Dev mode     — {'ON (Haiku)' if config.DEV_MODE else 'OFF (Sonnet)'}")
+        print(f"  VIX regime   — {vix_regime}")
+        print(f"  Tickers      — {stats['tickers_succeeded']} succeeded"
               f" / {stats['tickers_failed']} failed")
+        
+        # Compute total wall-clock duration from run start to summary print
+        run_duration_secs = round(time.time() - run_start_time, 1)
+        
+        print(f"  Duration     — {run_duration_secs}s")
+        if stale_items:
+            print(f"  Stale thesis — {len(stale_items)} item(s) flagged for review")
         print()
-        print(f"  {'Call type':<28} {'In':>7} {'Out':>7} {'Cost':>8} {'Calls':>5}")
-        print(f"  {'─'*28} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
+        print(f"  {'Call type':<28} {'Model':<10} {'In':>7} {'Out':>7} {'Cost':>8} {'Calls':>5}")
+        print(f"  {'─'*28} {'─'*10} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
         for r in call_rows:
             print(
                 f"  {r['call_type']:<28} "
+                f"{r['model_used']:<10} "
                 f"{r['total_input']:>7,} "
                 f"{r['total_output']:>7,} "
                 f"${r['total_cost']:>7.4f} "
                 f"{r['call_count']:>5}"
             )
-        print(f"  {'─'*28} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
+        print(f"  {'─'*28} {'─'*10} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
         print(
-            f"  {'TOTAL':<28} "
+            f"  {'TOTAL':<28} {'':10} "
             f"{total_input_all:>7,} "
             f"{total_output_all:>7,} "
             f"${total_cost:>7.4f}"

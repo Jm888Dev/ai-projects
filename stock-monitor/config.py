@@ -2,11 +2,54 @@
 # All project constants live here. One file, one edit.
 # Nothing is hardcoded in the pipeline scripts.
 
-# ── DATA MODE ──────────────────────────────────────────────
-# False = read from fixtures (development, prompt tuning, testing)
-# True  = fetch from live sources (real sessions, demo, production)
-# Change this one line to switch modes — nothing else changes.
+# Standard library imports — needed for thesis override loading
+import json   # reads thesis_overrides.json at startup
+import os     # builds file path relative to config.py location
+
+# ── DATA AND AGENT MODE ────────────────────────────────────
+#
+# QUICK REFERENCE — MODE COMBINATIONS
+#
+# LIVE_DATA  LIVE_AGENTS  DEV_MODE  SCENARIO                            COST
+# ─────────────────────────────────────────────────────────────────────────────
+# False      False        True      Full fixture — build/test schema     $0.00
+# True       False        True      Live prices + fixture agents          $0.00
+# False      True         True      Fixture prices + live Haiku agents   ~$0.05
+# False      True         False     Fixture prices + live Sonnet agents  ~$0.30
+# True       True         True      Full live run — Haiku               ~$0.05
+# True       True         False     Full live run — Sonnet, demo        ~$0.30
+#
+# CAPTURE FLAGS (only apply when corresponding LIVE flag is True)
+# CAPTURE_LIVE_DATA_FOR_FIXTURES    — True = overwrite normal_day.json
+# CAPTURE_LIVE_AGENTS_FOR_FIXTURES  — True = overwrite fixtures/agents/
+# Set both False during prompt tuning to freeze your baseline.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# USE_LIVE_DATA controls whether prices come from yfinance or
+# from fixtures/normal_day.json.
+# False = fixture prices — zero cost, instant, no network needed
+# True  = live yfinance fetch — real prices, real session
 USE_LIVE_DATA = False
+
+# USE_LIVE_AGENTS controls whether agents call the Claude API
+# or load pre-captured outputs from fixtures/agents/.
+# False = fixture agents — zero API cost, instant, deterministic
+# True  = live Claude API calls — real reasoning, real cost
+USE_LIVE_AGENTS = False
+
+# CAPTURE_LIVE_DATA_FOR_FIXTURES controls whether a live price
+# fetch overwrites fixtures/normal_day.json.
+# True  = fixtures stay fresh after every live run — default
+# False = fixtures frozen — use during prompt tuning so your
+#         price baseline does not shift between runs
+CAPTURE_LIVE_DATA_FOR_FIXTURES = True
+
+# CAPTURE_LIVE_AGENTS_FOR_FIXTURES controls whether live agent
+# outputs overwrite fixtures/agents/ after each call.
+# True  = agent fixtures stay fresh after every live run — default
+# False = agent fixtures frozen — use during prompt tuning so
+#         you can isolate prompt changes from output changes
+CAPTURE_LIVE_AGENTS_FOR_FIXTURES = True
 
 # ── DEV MODE ───────────────────────────────────────────────
 # True  = all agents run on Haiku — fast, cheap, for building
@@ -415,3 +458,66 @@ PORTFOLIO_SECTIONS_LAST_REVIEWED = {
     "concentration_risks": "2026-06-09",
     "sizing_philosophy":   "2026-06-09",
 }
+
+# ── THESIS OVERRIDES ───────────────────────────────────────
+# Loads human-approved thesis changes from thesis_overrides.json
+# and merges them into TICKER_THESIS at startup.
+#
+# How it works:
+#   1. thesis_overrides.json starts as an empty dict {}
+#   2. On Day 28, the Streamlit review UI writes approved
+#      changes here when you click approve
+#   3. At startup, this block reads the file and patches
+#      TICKER_THESIS in place — agents always see the merged result
+#
+# Why a separate file instead of editing TICKER_THESIS directly?
+#   - TICKER_THESIS is version-controlled in Git — your base thesis
+#   - thesis_overrides.json holds live approved changes — separate layer
+#   - If you ever want to reset to base thesis, delete the overrides file
+#   - The two-layer design means you never lose your original reasoning
+
+# Build path relative to this file's location.
+# Works regardless of which directory you run stock_monitor.py from.
+_OVERRIDES_PATH = os.path.join(os.path.dirname(__file__), "thesis_overrides.json")
+
+
+def _load_thesis_overrides():
+    """
+    Reads thesis_overrides.json. Returns empty dict if file is
+    missing or unreadable — never crashes the pipeline.
+    """
+    if not os.path.exists(_OVERRIDES_PATH):
+        # File does not exist yet — no overrides to apply, that is fine
+        return {}
+    try:
+        with open(_OVERRIDES_PATH, "r", encoding="utf-8-sig") as f:
+            return json.load(f)
+    except Exception as e:
+        # Malformed JSON or permission error — warn and continue
+        print(f"[CONFIG] WARNING: could not load thesis_overrides.json: {e}")
+        return {}
+
+
+def _deep_update(base, overrides):
+    """
+    Merges overrides into base one level deep.
+    Why not dict.update()? Because dict.update() replaces the entire
+    ticker entry. If overrides has only NVDA.thesis, we want to keep
+    NVDA.watch_items and NVDA.sizing from base untouched.
+    This function merges section by section instead.
+    """
+    for ticker, sections in overrides.items():
+        if ticker in base and isinstance(base[ticker], dict):
+            # Ticker exists — merge at section level, not ticker level
+            base[ticker].update(sections)
+        else:
+            # New ticker not in base — add it wholesale
+            base[ticker] = sections
+    return base
+
+
+# Apply overrides to TICKER_THESIS once at import time.
+# After this line TICKER_THESIS reflects base + any approved changes.
+# Agents import config and read TICKER_THESIS — they automatically
+# get the patched version without any change to pipeline code.
+_deep_update(TICKER_THESIS, _load_thesis_overrides())

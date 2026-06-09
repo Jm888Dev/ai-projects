@@ -1,0 +1,18 @@
+```json
+{
+  "persona": "pragmatist",
+  "ticker": "SMH",
+  "direction": "HOLD",
+  "confidence": 2,
+  "statistical_anchor": "SMH down 0.92% on 0.6x average volume in a low-conviction tape; 3-day return -4.68%, 5-day return -5.39% suggests short-term downtrend, but price at 0.42 position in recent range (mid-zone, not capitulation); 50-day MA support at $511.29 is 13.6% below current price — meaningful buffer remains. Data does not yet signal either accumulation or exit; momentum is negative but not exhausted.",
+  "volume_assessment": "Volume is thin conviction — 5.85M shares at 0.6x 30-day average. The -0.92% move is occurring on below-average tape. This suggests the selloff lacks institutional force. Thin volume on down days historically precedes either reversal or acceleration depending on macro trigger; current tape cannot sustain either outcome without fresh conviction flow.",
+  "trend_assessment": "Short-term momentum is negative: -4.68% over 3 days, -5.39% over 5 days, streak of 1 down session. However, price remains 13.6% above 50-day MA ($511.29) and sits at 0.42 position in recent range — neither overbought nor at capitulation. The 10-day high of $637.90 is only 6.23% above current price, indicating the decline is within normal volatility bands, not a structural breakdown. Moving average support is intact.",
+  "regime_context": "Fed stance is data-dependent and paused; 10Y UST stable at 4.2%; VIX at 18.83 (normal regime, not elevated). Semiconductor valuations are typically compressed in rising-rate environments but current rate environment is stable. No macro shock or policy shift to explain the 5-day decline. This suggests the move is sector-specific or technical rather than macro-driven. Stable rates should support semiconductor multiples absent demand deterioration.",
+  "watch_items": [
+    "Break below $569.69 (10-day low) — would signal shift from normal range to lower-range regime and warrant reassessment to REDUCE",
+    "Volume surge on further decline — if next down day occurs on >1.2x average volume, conviction is building and statistical case shifts to EXIT",
+    "SMH vs NVDA divergence — SMH down 0.92%, NVDA down only 0.75%; SMH weakness is marginal relative to NVDA; if SMH underperforms NVDA by >2% cumulative over next 3 sessions, flags broader semiconductor weakness beyond AI anchor",
+    "Retest of $597.65 (previous close) with volume >1.0x average — would confirm bounce durability and shift direction to ACCUMULATE"
+  ]
+}
+```
