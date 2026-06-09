@@ -59,7 +59,7 @@ ANALYST_MODEL = _SONNET
 STAGE_1_MAX_TOKENS    = 1200   # was 800 — Black Swan and Pragmatist need room
 STAGE_2_MAX_TOKENS    = 2000   # was 1200 — Contrarian reads four inputs
 STAGE_3_MAX_TOKENS    = 4000   # was 1500 — Meta-Agent covers eight tickers
-TRANSLATOR_MAX_TOKENS = 1200   # was 1000 — slight increase for richer briefings
+TRANSLATOR_MAX_TOKENS = 2500   # was 1200 — needs room for 7-ticker briefing
 
 # Kept for backward compatibility
 ANALYST_MAX_TOKENS = 1200

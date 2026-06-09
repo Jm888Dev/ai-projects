@@ -4,14 +4,14 @@
   "_created": "2026-06-08",
 
   "prices": [
-    {"ticker": "NVDA",   "instrument_type": "equity", "price": 221.38, "prev_close": 230.23, "pct_change": 1.04},
-    {"ticker": "AVGO",   "instrument_type": "equity", "price": 383.42, "prev_close": 387.25, "pct_change": 1},
-    {"ticker": "LITE",   "instrument_type": "equity", "price": 860.67,  "prev_close": 869.27,  "pct_change": 1},
-    {"ticker": "TSM",    "instrument_type": "equity", "price": 450.23, "prev_close": 454.73, "pct_change": 1},
-    {"ticker": "QQQ",    "instrument_type": "etf",    "price": 669.12, "prev_close": 675.81, "pct_change": 1},
-    {"ticker": "SMH",    "instrument_type": "etf",    "price": 509.87, "prev_close": 514.96, "pct_change": 1},
-    {"ticker": "G3B.SI", "instrument_type": "etf",    "price": 5.18,   "prev_close": 5.23,   "pct_change": 1},
-    {"ticker": "^VIX",   "instrument_type": "index",  "price": 14.83,  "prev_close": 14.97,  "pct_change": 1}
+      {"ticker": "NVDA",   "instrument_type": "equity", "price": 221.38, "prev_close": 230.23, "pct_change": 1.04, "volume": 45200000,  "volume_vs_avg": 1.19, "volume_signal": "elevated"},
+      {"ticker": "AVGO",   "instrument_type": "equity", "price": 383.42, "prev_close": 387.25, "pct_change": 1.00, "volume": 8100000,   "volume_vs_avg": 0.92, "volume_signal": "normal"},
+      {"ticker": "LITE",   "instrument_type": "equity", "price": 860.67, "prev_close": 869.27, "pct_change": 1.00, "volume": 1200000,   "volume_vs_avg": 1.41, "volume_signal": "normal"},
+      {"ticker": "TSM",    "instrument_type": "equity", "price": 450.23, "prev_close": 454.73, "pct_change": 1.00, "volume": 12400000,  "volume_vs_avg": 0.88, "volume_signal": "normal"},
+      {"ticker": "QQQ",    "instrument_type": "etf",    "price": 669.12, "prev_close": 675.81, "pct_change": 1.00, "volume": 32100000,  "volume_vs_avg": 1.05, "volume_signal": "normal"},
+      {"ticker": "SMH",    "instrument_type": "etf",    "price": 509.87, "prev_close": 514.96, "pct_change": 1.00, "volume": 5800000,   "volume_vs_avg": 0.76, "volume_signal": "normal"},
+      {"ticker": "G3B.SI", "instrument_type": "etf",    "price": 5.18,   "prev_close": 5.23,   "pct_change": 1.00, "volume": 890000,    "volume_vs_avg": 1.02, "volume_signal": "normal"},
+      {"ticker": "^VIX",   "instrument_type": "index",  "price": 14.83,  "prev_close": 14.97,  "pct_change": 1.00, "volume": null,       "volume_vs_avg": null,  "volume_signal": "unavailable"}
   ],
 
   "intelligence": {
