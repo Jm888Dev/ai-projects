@@ -459,6 +459,67 @@ PORTFOLIO_SECTIONS_LAST_REVIEWED = {
     "sizing_philosophy":   "2026-06-09",
 }
 
+# ── CORRELATION PAIRS ──────────────────────────────────────
+# Defines which ticker pairs to check for rolling correlation
+# each session. check_portfolio_correlations() in stock_monitor.py
+# reads this list and runs a 30-day Pearson check on each pair.
+#
+# What correlation means in plain English:
+#   Above 0.70 = the two positions are moving together strongly —
+#   any diversification benefit between them is currently weak.
+#   Above 0.95 = they are moving almost identically — you
+#   effectively have one position, not two.
+#
+# What happens when threshold is breached:
+#   A portfolio_relationship_alert signal is written to the signals
+#   table. It surfaces in the run summary and gets injected into
+#   the Meta-Agent's context so it reasons with this information.
+#
+# How to add a new pair:
+#   Copy one dict block below and change ticker_a, ticker_b,
+#   threshold, label, and rationale. That is all — the function
+#   picks it up automatically on the next run.
+#
+# G3B.SI note: the diversification thesis for G3B.SI needs
+# re-evaluation at Days 31-60 when the knowledge graph and
+# regional lenses are built. The correlation check surfaces
+# data — it does not replace proper investment analysis.
+CORRELATION_PAIRS = [
+    {
+        # Diversification health check
+        # G3B.SI should move independently of the semiconductor chain.
+        # If correlation exceeds 0.70, the "local anchor" thesis is
+        # currently broken — G3B.SI is moving with the chain, not
+        # against it. This does not mean sell — it means the
+        # diversification assumption needs reviewing.
+        "ticker_a":  "G3B.SI",
+        "ticker_b":  "SMH",
+        "threshold": 0.70,
+        "label":     "G3B.SI vs SMH — diversification health",
+        "rationale": (
+            "G3B.SI should move independently of the semiconductor "
+            "chain. High correlation signals the diversification "
+            "thesis is currently not holding."
+        ),
+    },
+    {
+        # Concentration signal
+        # NVDA is approximately 20% of SMH. If their correlation
+        # exceeds 0.95, NVDA is so dominant that holding both NVDA
+        # and SMH gives almost no additional exposure — you are
+        # essentially doubling your NVDA bet through SMH.
+        "ticker_a":  "NVDA",
+        "ticker_b":  "SMH",
+        "threshold": 0.95,
+        "label":     "NVDA vs SMH — concentration signal",
+        "rationale": (
+            "NVDA is ~20% of SMH. Extremely high correlation signals "
+            "NVDA is dominating SMH returns — holding both gives "
+            "minimal diversification benefit."
+        ),
+    },
+]
+
 # ── THESIS OVERRIDES ───────────────────────────────────────
 # Loads human-approved thesis changes from thesis_overrides.json
 # and merges them into TICKER_THESIS at startup.

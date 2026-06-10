@@ -22,8 +22,9 @@ _ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(_ROOT))           # gives access to shared/
 sys.path.insert(0, str(_ROOT / "stock-monitor"))  # gives access to config, database
 
-from shared.utils import extract_json, call_llm, update_market_history, save_price_fixtures
+from shared.utils import extract_json, call_llm, update_market_history, save_price_fixtures, send_email_alert
 from shared.data_sources import get_current_prices, get_intelligence_context
+
 
 from prompts.analyst_persona import (
     STOCK_BULL_SYSTEM_PROMPT,
@@ -174,6 +175,324 @@ def check_thesis_staleness():
 
     # Return the list so the run summary can include stale count
     return stale_items
+
+def check_portfolio_correlations(run_id):
+    """
+    Computes rolling 30-day Pearson correlation for each pair
+    defined in config.CORRELATION_PAIRS.
+
+    What Pearson correlation means in plain English:
+      A number from -1 to +1 measuring how closely two price
+      series moved together over the last 30 trading days.
+      +1 = perfectly in sync. 0 = no relationship.
+      Above the threshold = diversification assumption is weak.
+
+    Runs after market history update each session — needs fresh
+    data to be meaningful. Pure Python/pandas — no LLM call,
+    no API cost.
+
+    Writes a portfolio_relationship_alert signal to the signals
+    table when a threshold is breached. The Meta-Agent reads
+    active signals so it reasons with this information.
+
+    Returns a list of breach dicts for the run summary.
+    """
+    import pandas as pd
+
+    print("\n[CORRELATIONS] Checking portfolio correlation pairs...")
+    breaches = []  # collect any threshold breaches to return
+
+    for pair in config.CORRELATION_PAIRS:
+        ticker_a  = pair["ticker_a"]
+        ticker_b  = pair["ticker_b"]
+        threshold = pair["threshold"]
+        label     = pair["label"]
+        rationale = pair["rationale"]
+
+        try:
+            # Fetch last 30 daily close prices for each ticker
+            # read_market_history returns rows newest-first, so we
+            # reverse to get oldest-first for correct time ordering
+            rows_a = database.read_market_history(ticker_a, limit=30)
+            rows_b = database.read_market_history(ticker_b, limit=30)
+
+            if len(rows_a) < 10 or len(rows_b) < 10:
+                # Not enough history to compute a meaningful correlation —
+                # need at least 10 data points or the number is unreliable
+                print(f"[CORRELATIONS] {label}: insufficient history "
+                      f"({len(rows_a)} rows for {ticker_a}, "
+                      f"{len(rows_b)} rows for {ticker_b}) — skipping.")
+                continue
+
+            # Build a dict of date -> close for each ticker
+            # dict comprehension: {trade_date: close} for each row
+            prices_a = {row["trade_date"]: row["close"] for row in rows_a}
+            prices_b = {row["trade_date"]: row["close"] for row in rows_b}
+
+            # Find dates where both tickers have data
+            # set intersection gives us only the common trading days —
+            # different markets (SGX vs NYSE) may have different holidays
+            common_dates = sorted(
+                set(prices_a.keys()) & set(prices_b.keys())
+            )
+
+            if len(common_dates) < 10:
+                # After intersection, fewer than 10 shared dates —
+                # not enough overlap to compute reliable correlation
+                print(f"[CORRELATIONS] {label}: only {len(common_dates)} "
+                      f"shared dates after intersection — skipping.")
+                continue
+
+            # Build aligned price series from the common dates
+            # pandas Series gives us the .corr() method for free
+            series_a = pd.Series(
+                [prices_a[d] for d in common_dates],
+                name=ticker_a
+            )
+            series_b = pd.Series(
+                [prices_b[d] for d in common_dates],
+                name=ticker_b
+            )
+
+            # Compute Pearson correlation — the core calculation
+            # .corr() returns a float between -1 and +1
+            correlation = round(series_a.corr(series_b), 4)
+
+            if correlation > threshold:
+                # Threshold breached — write alert to signals table
+                # and record for run summary
+                print(f"[CORRELATIONS] ALERT: {label} — "
+                      f"correlation {correlation:.3f} exceeds "
+                      f"threshold {threshold} over last "
+                      f"{len(common_dates)} sessions.")
+
+                database.write_signal(
+                    run_id=run_id,
+                    ticker=ticker_a,          # primary ticker for the alert
+                    signal_type="portfolio_relationship_alert",
+                    value=correlation,         # the actual correlation number
+                    threshold=threshold,       # the threshold it breached
+                    triggered=1,              # 1 = condition fired
+                    direction=None,
+                    persona="correlation_check",
+                    entity_a=ticker_a,
+                    relationship="correlated_with",
+                    entity_b=ticker_b,
+                    notes=(
+                        f"{label}. "
+                        f"30-day Pearson: {correlation:.3f} "
+                        f"(threshold: {threshold}). "
+                        f"{rationale}"
+                    ),
+                )
+
+                breaches.append({
+                    "label":       label,
+                    "ticker_a":    ticker_a,
+                    "ticker_b":    ticker_b,
+                    "correlation": correlation,
+                    "threshold":   threshold,
+                })
+
+            else:
+                # Below threshold — thesis assumption currently holding
+                print(f"[CORRELATIONS] OK: {label} — "
+                      f"correlation {correlation:.3f} "
+                      f"(threshold {threshold}, "
+                      f"{len(common_dates)} sessions)")
+
+        except Exception as e:
+            # Log and continue — one failed pair never stops the pipeline
+            print(f"[CORRELATIONS] ERROR: {label} failed in "
+                  f"check_portfolio_correlations() — {e}. "
+                  f"Fix: check market_history has data for "
+                  f"{ticker_a} and {ticker_b}.")
+            continue
+
+    if breaches:
+        print(f"\n[CORRELATIONS] {len(breaches)} threshold breach(es) "
+              f"written to signals table.")
+    else:
+        print("\n[CORRELATIONS] All pairs within thresholds.")
+
+    return breaches
+
+def score_persona_call_outcomes():
+    """
+    Scores persona_calls from T-3 sessions by comparing each
+    directional call against actual price movement in market_history.
+
+    Why T-3 sessions (not calendar days)?
+    Uses run count not calendar time — your pipeline may not run
+    every day. Three sessions gives enough time for a directional
+    call to be confirmed or denied by price movement.
+
+    Scoring rules:
+      ACCUMULATE + price up >1%   → correct
+      ACCUMULATE + price down >1% → incorrect
+      REDUCE/EXIT + price down >1% → correct
+      REDUCE/EXIT + price up >1%  → incorrect
+      HOLD (any direction)         → partial
+      price move <1% either way   → void (too small to judge)
+
+    This is a stub — full calibration and horizon tuning on Day 15.
+    Runs at session start, non-blocking. Skips calls already scored.
+    """
+    print("\n[SCORING] Scoring persona calls from T-3 sessions...")
+
+    try:
+        with database.get_connection() as conn:
+
+            # ── Find the run_id from 3 sessions ago ──
+            # Order by started_at DESC — most recent first
+            # offset 3 skips the 3 most recent runs to get T-3
+            # We only score 'complete' runs — failed runs had
+            # incomplete data and should not be scored
+            run_rows = conn.execute(
+                """
+                SELECT run_id, started_at
+                FROM run_log
+                WHERE status = 'complete'
+                ORDER BY started_at DESC
+                LIMIT 1 OFFSET 3
+                """
+            ).fetchall()
+
+            if not run_rows:
+                # Fewer than 4 complete runs exist — not enough history
+                # to score anything yet. Normal on early sessions.
+                print("[SCORING] Fewer than 4 complete runs — "
+                      "nothing to score yet.")
+                return
+
+            target_run_id   = run_rows[0]["run_id"]
+            target_run_date = run_rows[0]["started_at"][:10]  # YYYY-MM-DD
+
+            # ── Fetch unscored persona calls from that run ──
+            # outcome IS NULL means not yet scored
+            calls = conn.execute(
+                """
+                SELECT id, persona, ticker, direction, confidence_score
+                FROM persona_calls
+                WHERE run_id = ?
+                  AND outcome IS NULL
+                  AND direction IS NOT NULL
+                """,
+                (target_run_id,)
+            ).fetchall()
+
+            if not calls:
+                print(f"[SCORING] No unscored calls found for "
+                      f"run {target_run_id} — already scored or empty.")
+                return
+
+            print(f"[SCORING] Scoring {len(calls)} calls from "
+                  f"run {target_run_id} ({target_run_date})...")
+
+            scored = 0
+            skipped = 0
+
+            for call in calls:
+                ticker    = call["ticker"]
+                direction = call["direction"]
+                call_id   = call["id"]
+
+                # ── Get price at time of call (T) ──
+                # Find the price row written during that run
+                price_at_call = conn.execute(
+                    """
+                    SELECT price
+                    FROM prices
+                    WHERE run_id = ?
+                      AND ticker = ?
+                    LIMIT 1
+                    """,
+                    (target_run_id, ticker)
+                ).fetchone()
+
+                # ── Get most recent price from market_history ──
+                # This is our "current" price to compare against
+                current_price = conn.execute(
+                    """
+                    SELECT close, trade_date
+                    FROM market_history
+                    WHERE ticker = ?
+                    ORDER BY trade_date DESC
+                    LIMIT 1
+                    """,
+                    (ticker,)
+                ).fetchone()
+
+                # Skip if we cannot compute a meaningful move
+                if not price_at_call or not current_price:
+                    skipped += 1
+                    continue
+
+                price_then = price_at_call["price"]
+                price_now  = current_price["close"]
+
+                if not price_then or price_then == 0:
+                    skipped += 1
+                    continue
+
+                # ── Compute percentage move since the call ──
+                pct_move = ((price_now - price_then) / price_then) * 100
+
+                # ── Apply scoring rules ──
+                # Void threshold: moves smaller than 1% are too small
+                # to judge — market noise, not signal confirmation
+                VOID_THRESHOLD = 1.0
+
+                if abs(pct_move) < VOID_THRESHOLD:
+                    # Price barely moved — cannot confirm or deny
+                    outcome = "void"
+
+                elif direction == "ACCUMULATE":
+                    outcome = "correct" if pct_move > 0 else "incorrect"
+
+                elif direction in ("REDUCE", "EXIT"):
+                    outcome = "correct" if pct_move < 0 else "incorrect"
+
+                elif direction == "HOLD":
+                    # HOLD is directionally neutral — partial credit
+                    # regardless of which way price moved
+                    outcome = "partial"
+
+                else:
+                    # Unknown direction value — skip rather than guess
+                    skipped += 1
+                    continue
+
+                # ── Write outcome back to persona_calls ──
+                # resolved_by_run_id records which session did the scoring
+                # so we can audit when and how each call was evaluated
+                current_run_id = conn.execute(
+                    """
+                    SELECT run_id FROM run_log
+                    ORDER BY started_at DESC
+                    LIMIT 1
+                    """
+                ).fetchone()["run_id"]
+
+                conn.execute(
+                    """
+                    UPDATE persona_calls
+                    SET outcome            = ?,
+                        resolved_by_run_id = ?
+                    WHERE id = ?
+                    """,
+                    (outcome, current_run_id, call_id)
+                )
+                scored += 1
+
+            print(f"[SCORING] Complete — {scored} scored, "
+                  f"{skipped} skipped (missing price data).")
+
+    except Exception as e:
+        # Non-blocking — scoring failure never stops the pipeline
+        print(f"[SCORING] ERROR: score_persona_call_outcomes() failed "
+              f"— {e}. Fix: check persona_calls and prices tables "
+              f"have data for T-3 run.")
 
 # ─────────────────────────────────────────────────────────────
 # STEP 2 — DATA PACKAGE BUILDER
@@ -878,7 +1197,40 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
                           f"Decision: {decision}. "
                           f"Horizon: {ticker_decision.get('review_horizon', 'T+3')}",
                 )
+    # ── Email alerts for high-conviction decisions ────────────
+    # Sends an alert when Meta-Agent produces REDUCE or EXIT
+    # with confidence >= 4, or when any kill trigger fires.
+    # Runs after all signals are written so the email body can
+    # reference the full decision set.
+    # Only fires on live runs — fixture runs do not send emails
+    # because the decisions are pre-captured, not real signals.
+    if config.USE_LIVE_DATA:
+        alert_lines = []
 
+        for ticker, ticker_decision in tickers_output.items():
+            decision   = ticker_decision.get("decision", "HOLD")
+            confidence = ticker_decision.get("confidence", 0)
+
+            # High-conviction REDUCE or EXIT — warrants immediate attention
+            if decision in ("REDUCE", "EXIT") and confidence >= 4:
+                alert_lines.append(
+                    f"{ticker}: {decision} (confidence {confidence}/5)\n"
+                    f"  {ticker_decision.get('primary_rationale', '')[:200]}"
+                )
+
+        if alert_lines:
+            subject = f"Action required — {len(alert_lines)} high-conviction signal(s)"
+            body = (
+                f"Stock Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+                f"VIX regime: {vix_regime} (VIX: {vix_level})\n\n"
+                f"HIGH-CONVICTION SIGNALS\n"
+                f"{'─' * 40}\n"
+                + "\n\n".join(alert_lines)
+                + f"\n\n{'─' * 40}\n"
+                f"Review the full briefing in your terminal or run summary."
+            )
+            send_email_alert(subject, body)
+    # ── End email alerts ──────────────────────────────────────
     print(f"  [META-AGENT] Complete — {duration}s")
     return parsed
 
@@ -1054,6 +1406,11 @@ def main():
         print(f"  Mode: {data_mode.upper()}")
         print(f"{'='*60}\n")
 
+        # Score persona calls from T-3 sessions at session start
+        # Non-blocking — runs before kill triggers so scored data
+        # is available if any downstream function queries outcomes
+        score_persona_call_outcomes()
+
         # ── Kill trigger check ──
         # Must run before any data fetch so active triggers are
         # injected into data packages before agents start reasoning
@@ -1062,6 +1419,12 @@ def main():
         # Check thesis staleness after kill triggers
         # Non-blocking — flags stale entries in run summary but never stops the run
         stale_items = check_thesis_staleness()
+
+        # Correlation checks run after market history update so they
+        # use the freshest available data. In fixture mode market
+        # history is not updated but existing history is still valid
+        # for correlation computation.
+        correlation_breaches = check_portfolio_correlations(run_id)
 
         # ── Update market history (delta pull) ──
         # Fetches new trading days since last stored date.
@@ -1303,6 +1666,8 @@ def main():
         print(f"  Duration     — {run_duration_secs}s")
         if stale_items:
             print(f"  Stale thesis — {len(stale_items)} item(s) flagged for review")
+        if correlation_breaches:
+            print(f"  Correlations — {len(correlation_breaches)} threshold breach(es) — see signals table")
         print()
         print(f"  {'Call type':<28} {'Model':<10} {'In':>7} {'Out':>7} {'Cost':>8} {'Calls':>5}")
         print(f"  {'─'*28} {'─'*10} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
