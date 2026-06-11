@@ -1,14 +1,17 @@
-{
-	"folders": [
-		{
-			"path": "stock-monitor"
-		},
-		{
-			"path": "hdb-analyser"
-		},
-		{
-			"path": "shared"
-		}
-	],
-	"settings": {}
+﻿{
+        "folders": [
+                {
+                        "path": "stock-monitor"
+                },
+                {
+                        "path": "hdb-analyser"
+                },
+                {
+                        "path": "shared"
+                },
+                {
+                        "path": "docs"
+                }
+        ],
+        "settings": {}
 }

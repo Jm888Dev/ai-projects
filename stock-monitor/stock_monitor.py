@@ -22,7 +22,7 @@ _ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(_ROOT))           # gives access to shared/
 sys.path.insert(0, str(_ROOT / "stock-monitor"))  # gives access to config, database
 
-from shared.utils import extract_json, call_llm, update_market_history, save_price_fixtures, send_email_alert
+from shared.utils import extract_json, call_llm, update_market_history, save_price_fixtures, send_email_alert, format_warning
 from shared.data_sources import get_current_prices, get_intelligence_context
 
 
@@ -319,180 +319,177 @@ def check_portfolio_correlations(run_id):
 
 def score_persona_call_outcomes():
     """
-    Scores persona_calls from T-3 sessions by comparing each
-    directional call against actual price movement in market_history.
+    Scores persona_calls at +5 and +20 trading-day horizons.
 
-    Why T-3 sessions (not calendar days)?
-    Uses run count not calendar time — your pipeline may not run
-    every day. Three sessions gives enough time for a directional
-    call to be confirmed or denied by price movement.
+    Why two horizons?
+    +5 trading days (~1 week) tests short-term momentum calls.
+    +20 trading days (~1 month) tests thesis-level directional calls.
+    Day 15 calibration uses both to find which horizon each persona
+    is actually reliable at — the right horizon varies by persona type.
 
-    Scoring rules:
-      ACCUMULATE + price up >1%   → correct
-      ACCUMULATE + price down >1% → incorrect
+    Why price_at_signal instead of the run's price record?
+    price_at_signal is logged at the exact moment the call is made
+    and is immutable. This gives an accurate baseline regardless of
+    when during the trading day the pipeline ran.
+
+    Scoring rules (applied at both horizons):
+      ACCUMULATE + price up >1%    → correct
+      ACCUMULATE + price down >1%  → incorrect
       REDUCE/EXIT + price down >1% → correct
-      REDUCE/EXIT + price up >1%  → incorrect
+      REDUCE/EXIT + price up >1%   → incorrect
       HOLD (any direction)         → partial
-      price move <1% either way   → void (too small to judge)
+      price move <1% either way    → void (noise, not signal)
 
-    This is a stub — full calibration and horizon tuning on Day 15.
-    Runs at session start, non-blocking. Skips calls already scored.
+    Runs at session start. Non-blocking — never stops the pipeline.
+    Skips calls that are already scored or have missing price data.
     """
-    print("\n[SCORING] Scoring persona calls from T-3 sessions...")
+    import pandas as pd
+
+    print("\n[SCORING] Scoring persona calls at +5 and +20 trading-day horizons...")
+
+    # Void threshold — moves smaller than this are market noise
+    VOID_THRESHOLD = 1.0
+
+    # Horizons to score — days from market_history
+    HORIZONS = [
+        {"days": 5,  "col": "outcome_5d"},
+        {"days": 20, "col": "outcome_20d"},
+    ]
 
     try:
         with database.get_connection() as conn:
 
-            # ── Find the run_id from 3 sessions ago ──
-            # Order by started_at DESC — most recent first
-            # offset 3 skips the 3 most recent runs to get T-3
-            # We only score 'complete' runs — failed runs had
-            # incomplete data and should not be scored
-            run_rows = conn.execute(
-                """
-                SELECT run_id, started_at
-                FROM run_log
-                WHERE status = 'complete'
-                ORDER BY started_at DESC
-                LIMIT 1 OFFSET 3
-                """
-            ).fetchall()
+            # ── Ensure outcome columns exist ──────────────────────
+            # Add outcome_5d and outcome_20d columns if not present.
+            # This is a safe ALTER TABLE — SQLite ignores if column exists
+            # when we catch the error, so no migration script needed.
+            for col in ["outcome_5d", "outcome_20d"]:
+                try:
+                    conn.execute(
+                        f"ALTER TABLE persona_calls ADD COLUMN {col} TEXT"
+                    )
+                except Exception:
+                    pass  # Column already exists — safe to ignore
 
-            if not run_rows:
-                # Fewer than 4 complete runs exist — not enough history
-                # to score anything yet. Normal on early sessions.
-                print("[SCORING] Fewer than 4 complete runs — "
-                      "nothing to score yet.")
-                return
-
-            target_run_id   = run_rows[0]["run_id"]
-            target_run_date = run_rows[0]["started_at"][:10]  # YYYY-MM-DD
-
-            # ── Fetch unscored persona calls from that run ──
-            # outcome IS NULL means not yet scored
+            # ── Fetch all unscored calls that have price_at_signal ──
+            # Only score calls where we have the baseline price logged.
+            # run_id gives us the session date for horizon calculation.
             calls = conn.execute(
                 """
-                SELECT id, persona, ticker, direction, confidence_score
-                FROM persona_calls
-                WHERE run_id = ?
-                  AND outcome IS NULL
-                  AND direction IS NOT NULL
-                """,
-                (target_run_id,)
+                SELECT pc.id, pc.persona, pc.ticker, pc.direction,
+                       pc.price_at_signal, pc.run_id,
+                       pc.outcome_5d, pc.outcome_20d,
+                       rl.started_at
+                FROM persona_calls pc
+                JOIN run_log rl ON pc.run_id = rl.run_id
+                WHERE pc.price_at_signal IS NOT NULL
+                  AND pc.direction IS NOT NULL
+                  AND (pc.outcome_5d IS NULL OR pc.outcome_20d IS NULL)
+                """
             ).fetchall()
 
             if not calls:
-                print(f"[SCORING] No unscored calls found for "
-                      f"run {target_run_id} — already scored or empty.")
+                print("[SCORING] No unscored calls with price_at_signal — "
+                      "nothing to score yet.")
                 return
 
-            print(f"[SCORING] Scoring {len(calls)} calls from "
-                  f"run {target_run_id} ({target_run_date})...")
+            print(f"[SCORING] Found {len(calls)} call(s) to score...")
 
-            scored = 0
-            skipped = 0
+            scored_count   = 0
+            skipped_count  = 0
 
             for call in calls:
-                ticker    = call["ticker"]
-                direction = call["direction"]
-                call_id   = call["id"]
+                call_id         = call["id"]
+                ticker          = call["ticker"]
+                direction       = call["direction"]
+                price_at_signal = call["price_at_signal"]
+                started_at      = call["started_at"][:10]  # YYYY-MM-DD
+                current_5d      = call["outcome_5d"]
+                current_20d     = call["outcome_20d"]
 
-                # ── Get price at time of call (T) ──
-                # Find the price row written during that run
-                price_at_call = conn.execute(
+                # Get market_history closes for this ticker ordered oldest first
+                # We need dates after the signal date to find +5 and +20 closes
+                history = conn.execute(
                     """
-                    SELECT price
-                    FROM prices
-                    WHERE run_id = ?
-                      AND ticker = ?
-                    LIMIT 1
-                    """,
-                    (target_run_id, ticker)
-                ).fetchone()
-
-                # ── Get most recent price from market_history ──
-                # This is our "current" price to compare against
-                current_price = conn.execute(
-                    """
-                    SELECT close, trade_date
+                    SELECT trade_date, close
                     FROM market_history
                     WHERE ticker = ?
-                    ORDER BY trade_date DESC
-                    LIMIT 1
+                      AND trade_date > ?
+                    ORDER BY trade_date ASC
                     """,
-                    (ticker,)
-                ).fetchone()
+                    (ticker, started_at)
+                ).fetchall()
 
-                # Skip if we cannot compute a meaningful move
-                if not price_at_call or not current_price:
-                    skipped += 1
+                if not history:
+                    skipped_count += 1
                     continue
 
-                price_then = price_at_call["price"]
-                price_now  = current_price["close"]
+                # history[0] is the first trading day after the signal
+                # history[4] is +5 trading days, history[19] is +20
+                updates = {}
 
-                if not price_then or price_then == 0:
-                    skipped += 1
-                    continue
+                for horizon in HORIZONS:
+                    col      = horizon["col"]
+                    idx      = horizon["days"] - 1  # 0-indexed
 
-                # ── Compute percentage move since the call ──
-                pct_move = ((price_now - price_then) / price_then) * 100
+                    # Skip if already scored at this horizon
+                    if col == "outcome_5d"  and current_5d  is not None:
+                        continue
+                    if col == "outcome_20d" and current_20d is not None:
+                        continue
 
-                # ── Apply scoring rules ──
-                # Void threshold: moves smaller than 1% are too small
-                # to judge — market noise, not signal confirmation
-                VOID_THRESHOLD = 1.0
+                    # Not enough history yet — skip this horizon
+                    if len(history) <= idx:
+                        continue
 
-                if abs(pct_move) < VOID_THRESHOLD:
-                    # Price barely moved — cannot confirm or deny
-                    outcome = "void"
+                    future_close = history[idx]["close"]
+                    future_date  = history[idx]["trade_date"]
 
-                elif direction == "ACCUMULATE":
-                    outcome = "correct" if pct_move > 0 else "incorrect"
+                    if not future_close or price_at_signal == 0:
+                        continue
 
-                elif direction in ("REDUCE", "EXIT"):
-                    outcome = "correct" if pct_move < 0 else "incorrect"
+                    # Compute percentage move from signal price to future close
+                    pct_move = ((future_close - price_at_signal)
+                                / price_at_signal) * 100
 
-                elif direction == "HOLD":
-                    # HOLD is directionally neutral — partial credit
-                    # regardless of which way price moved
-                    outcome = "partial"
+                    # Apply scoring rules
+                    if abs(pct_move) < VOID_THRESHOLD:
+                        outcome = "void"
+                    elif direction == "ACCUMULATE":
+                        outcome = "correct" if pct_move > 0 else "incorrect"
+                    elif direction in ("REDUCE", "EXIT"):
+                        outcome = "correct" if pct_move < 0 else "incorrect"
+                    elif direction == "HOLD":
+                        outcome = "partial"
+                    else:
+                        continue
 
+                    updates[col] = outcome
+                    print(f"[SCORING] {call['persona']:<15} {ticker:<8} "
+                          f"{direction:<12} → {horizon['days']}d: {outcome} "
+                          f"({pct_move:+.1f}% by {future_date})")
+
+                if updates:
+                    # Build dynamic UPDATE for whichever horizons were scored
+                    set_clause = ", ".join(f"{k} = ?" for k in updates)
+                    values     = list(updates.values()) + [call_id]
+                    conn.execute(
+                        f"UPDATE persona_calls SET {set_clause} WHERE id = ?",
+                        values
+                    )
+                    scored_count += 1
                 else:
-                    # Unknown direction value — skip rather than guess
-                    skipped += 1
-                    continue
+                    skipped_count += 1
 
-                # ── Write outcome back to persona_calls ──
-                # resolved_by_run_id records which session did the scoring
-                # so we can audit when and how each call was evaluated
-                current_run_id = conn.execute(
-                    """
-                    SELECT run_id FROM run_log
-                    ORDER BY started_at DESC
-                    LIMIT 1
-                    """
-                ).fetchone()["run_id"]
-
-                conn.execute(
-                    """
-                    UPDATE persona_calls
-                    SET outcome            = ?,
-                        resolved_by_run_id = ?
-                    WHERE id = ?
-                    """,
-                    (outcome, current_run_id, call_id)
-                )
-                scored += 1
-
-            print(f"[SCORING] Complete — {scored} scored, "
-                  f"{skipped} skipped (missing price data).")
+            print(f"[SCORING] Complete — {scored_count} scored, "
+                  f"{skipped_count} skipped (insufficient history).")
 
     except Exception as e:
-        # Non-blocking — scoring failure never stops the pipeline
-        print(f"[SCORING] ERROR: score_persona_call_outcomes() failed "
-              f"— {e}. Fix: check persona_calls and prices tables "
-              f"have data for T-3 run.")
+        print(format_warning(
+            "WARN", "stock_monitor.py", "score_persona_call_outcomes()",
+            f"scoring failed — {e}",
+            "check persona_calls and market_history tables have data"
+        ))
 
 # ─────────────────────────────────────────────────────────────
 # STEP 2 — DATA PACKAGE BUILDER
@@ -927,7 +924,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
     # Detect LLM error — graceful degradation, skip this agent
     if text.startswith("[LLM_ERROR]"):
         print(f"    [{agent_name.upper()}] LLM error — skipping.")
-        return None
+        return None, usage.get("warnings", [])
 
     # Write raw output to analysis table
     database.write_analysis(
@@ -943,10 +940,26 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
     parsed, error = extract_json(text)
     if not parsed:
         print(f"    [{agent_name.upper()}] JSON parse failed: {error}")
-        return None
+        return None, usage.get("warnings", [])
 
     # Write persona_calls row — the voting ledger for Day 15 tuning
     # direction and confidence come from the parsed JSON output
+    # Extract the current price for this ticker from the data package.
+    # Stored as price_at_signal — immutable baseline for +5/+20 day scoring.
+    # Pulled from the prices table for the current run rather than passed
+    # as a parameter to keep the function signature clean.
+    price_at_signal = None
+    try:
+        with database.get_connection() as conn:
+            row = conn.execute(
+                "SELECT price FROM prices WHERE run_id = ? AND ticker = ? LIMIT 1",
+                (run_id, ticker)
+            ).fetchone()
+            if row:
+                price_at_signal = row["price"]
+    except Exception:
+        pass  # Non-fatal — scoring will skip this call if price is missing
+
     database.write_persona_call(
         run_id=run_id,
         persona=agent_name,
@@ -958,13 +971,16 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
         rationale_summary=parsed.get("primary_argument")
                           or parsed.get("statistical_anchor")
                           or parsed.get("unmapped_risk", "")[:200],
+        price_at_signal=price_at_signal,
     )
 
     print(f"    [{agent_name.upper()}] {ticker}: "
           f"{parsed.get('direction', '?')} "
           f"(confidence {parsed.get('confidence', '?')}) "
           f"— {duration}s")
-    return parsed
+    # Return parsed output AND any warnings from call_llm()
+    # Caller appends these to run_warnings for the end-of-run summary
+    return parsed, usage.get("warnings", [])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1037,7 +1053,7 @@ def run_contrarian(stage1_outputs, data_package, ticker,
 
     if text.startswith("[LLM_ERROR]"):
         print(f"    [CONTRARIAN] LLM error — skipping.")
-        return None
+        return None, usage.get("warnings", [])
 
     database.write_analysis(
         run_id=run_id,
@@ -1051,11 +1067,25 @@ def run_contrarian(stage1_outputs, data_package, ticker,
     parsed, error = extract_json(text)
     if not parsed:
         print(f"    [CONTRARIAN] JSON parse failed: {error}")
-        return None
+        return None, usage.get("warnings", [])
 
     # Write persona_calls row for the Contrarian
     # Contrarian is scored like Stage 1 agents — its directional call
     # is tracked and outcome-scored at T+3 sessions
+    # Same price_at_signal logic as run_stage1_agent() —
+    # immutable baseline for +5/+20 trading-day outcome scoring.
+    price_at_signal = None
+    try:
+        with database.get_connection() as conn:
+            row = conn.execute(
+                "SELECT price FROM prices WHERE run_id = ? AND ticker = ? LIMIT 1",
+                (run_id, ticker)
+            ).fetchone()
+            if row:
+                price_at_signal = row["price"]
+    except Exception:
+        pass
+
     database.write_persona_call(
         run_id=run_id,
         persona="contrarian",
@@ -1065,14 +1095,16 @@ def run_contrarian(stage1_outputs, data_package, ticker,
         regime_tag=vix_regime,
         vix_level=vix_level,
         rationale_summary=parsed.get("strongest_challenge", "")[:200],
+        price_at_signal=price_at_signal,
     )
 
     print(f"    [CONTRARIAN] {ticker}: "
           f"{parsed.get('direction', '?')} "
           f"(confidence {parsed.get('confidence', '?')}) "
           f"— {duration}s")
-    return parsed
-
+    # Return parsed output AND any warnings from call_llm()
+    # Caller appends these to run_warnings for the end-of-run summary
+    return parsed, usage.get("warnings", [])
 
 # ─────────────────────────────────────────────────────────────
 # STEP 5 — STAGE 3: META-AGENT (PORTFOLIO MANAGER)
@@ -1141,7 +1173,7 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
 
     if text.startswith("[LLM_ERROR]"):
         print("  [META-AGENT] LLM error — pipeline cannot complete.")
-        return None
+        return None, usage.get("warnings", [])
 
     database.write_analysis(
         run_id=run_id,
@@ -1155,7 +1187,7 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
     parsed, error = extract_json(text)
     if not parsed:
         print(f"  [META-AGENT] JSON parse failed: {error}")
-        return None
+        return None, usage.get("warnings", [])
 
     # ── Write kill triggers to signals table ──
     # Three kill triggers per ticker stored as entity_a/relationship/entity_b
@@ -1232,7 +1264,9 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
             send_email_alert(subject, body)
     # ── End email alerts ──────────────────────────────────────
     print(f"  [META-AGENT] Complete — {duration}s")
-    return parsed
+    # Return parsed output AND any warnings from call_llm()
+    # Caller appends these to run_warnings for the end-of-run summary
+    return parsed, usage.get("warnings", [])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1282,7 +1316,7 @@ def run_translator(meta_output, run_id):
     )
 
     if text.startswith("[LLM_ERROR]"):
-        return "[Translator unavailable — see LLM error above.]"
+        return "[Translator unavailable — see LLM error above.]", usage.get("warnings", [])
 
     database.write_analysis(
         run_id=run_id,
@@ -1294,7 +1328,9 @@ def run_translator(meta_output, run_id):
     )
 
     print(f"  [TRANSLATOR] Complete — {duration}s")
-    return text
+    # Return text AND any warnings from call_llm()
+    # Caller appends these to run_warnings for the end-of-run summary
+    return text, usage.get("warnings", [])
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1399,6 +1435,17 @@ def main():
 
     # Accumulates all LLM call costs for run summary
     all_call_costs = []
+
+    # ── RUN WARNING SUMMARY ───────────────────────────────────────────────────
+    # Pipe-delimited format: SEVERITY | file | function() | description | fix
+    # Machine-readable — import directly into Excel or SQLite for trend analysis.
+    # To add a new warning source:
+    #   1. Call format_warning() from shared/utils.py to build the string
+    #   2. Return it via usage["warnings"] from call_llm() callers
+    #      OR append directly to run_warnings for stock_monitor.py functions
+    # Never add free-form strings to run_warnings — always use format_warning()
+    # ─────────────────────────────────────────────────────────────────────────
+    run_warnings = []
 
     try:
         print(f"\n{'='*60}")
@@ -1514,7 +1561,7 @@ def main():
             ]
 
             for agent_name, system_prompt in agents:
-                output = run_stage1_agent(
+                output, agent_warnings = run_stage1_agent(
                     agent_name=agent_name,
                     system_prompt=system_prompt,
                     data_package=data_package,
@@ -1524,9 +1571,10 @@ def main():
                     vix_level=vix_level,
                 )
                 stage1_outputs[agent_name] = output
+                run_warnings.extend(agent_warnings)
 
             # ── Stage 2: Contrarian reads all four Stage 1 outputs ──
-            contrarian_output = run_contrarian(
+            contrarian_output, contrarian_warnings = run_contrarian(
                 stage1_outputs=stage1_outputs,
                 data_package=data_package,
                 ticker=ticker,
@@ -1534,6 +1582,7 @@ def main():
                 vix_regime=vix_regime,
                 vix_level=vix_level,
             )
+            run_warnings.extend(contrarian_warnings)
 
             # Compress agent outputs for Meta-Agent — pass only the
             # essential fields, not full JSON. This reduces Meta-Agent
@@ -1577,7 +1626,7 @@ def main():
             print()  # spacing between tickers
 
         # ── Stage 3: Meta-Agent reads full portfolio ledger ──
-        meta_output = run_meta_agent(
+        meta_output, meta_warnings = run_meta_agent(
             all_ticker_outputs=all_ticker_outputs,
             all_price_data=price_data,
             intelligence_context=intelligence_context,
@@ -1585,11 +1634,13 @@ def main():
             vix_regime=vix_regime,
             vix_level=vix_level,
         )
+        run_warnings.extend(meta_warnings)
 
         # ── Translator: plain English briefing ──
         briefing = ""
         if meta_output:
-            briefing = run_translator(meta_output, run_id)
+            briefing, translator_warnings = run_translator(meta_output, run_id)
+            run_warnings.extend(translator_warnings)
 
         # ── Display results ──
         display_results(price_data, meta_output, briefing)
@@ -1699,6 +1750,24 @@ def main():
             print("  Balance — run tools/set_anthropic_balance.py to set opening balance")
         if stats["fallback_used"]:
             print("  [WARN] Fallback model was used this run.")
+
+        # ── Consolidated warning summary ──────────────────────────────────
+        # Pipe-delimited: SEVERITY | file | function() | description | fix
+        # Machine-readable — copy into Excel or SQLite for trend analysis.
+        # See run_warnings definition above for how to add new sources.
+        # ─────────────────────────────────────────────────────────────────
+        error_count   = sum(1 for w in run_warnings if w.startswith("ERROR"))
+        warning_count = sum(1 for w in run_warnings if w.startswith("WARN"))
+        print(f"\n── Warnings & Errors ──────────────────────────────────────")
+        print(f"   Format: severity | file | function | description | fix")
+        print(f"{'─' * 60}")
+        if run_warnings:
+            for w in run_warnings:
+                print(f"  {w}")
+        else:
+            print("  None this run.")
+        print(f"── {error_count} error(s), {warning_count} warning(s) ──"
+              + "─" * 20)
         print("─" * 50)
 
         database.finish_run(run_id, status="complete", stats=stats)

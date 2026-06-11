@@ -17,7 +17,16 @@
 
 import sqlite3
 from datetime import datetime
+import sys
+from pathlib import Path
 import config
+
+# Import format_warning from shared/utils.py for standardised warning messages.
+# All warnings in this file use the pipe-delimited format:
+#   SEVERITY | file | function() | description | fix
+# This makes warnings machine-readable — importable into Excel or SQLite.
+sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
+from utils import format_warning
 
 
 # ─────────────────────────────────────────────────────────────
@@ -234,7 +243,8 @@ CREATE TABLE IF NOT EXISTS persona_calls (
     vix_level           REAL,
     rationale_summary   TEXT,
     outcome             TEXT,
-    resolved_by_run_id  TEXT
+    resolved_by_run_id  TEXT,
+    price_at_signal     REAL
 )
 """
 
@@ -298,6 +308,7 @@ CREATE TABLE IF NOT EXISTS thesis_reviews (
     source          TEXT DEFAULT 'ai_draft'
 )
 """
+
 
 # ─────────────────────────────────────────────────────────────
 # CONNECTION
@@ -403,12 +414,12 @@ def compute_call_cost(model_used, input_tokens, output_tokens):
 
     pricing = config.MODEL_PRICING.get(model_used)
     if pricing is None:
-        # Unknown model — cost cannot be computed and will be missing from run summary
-        # Action: add this model to MODEL_PRICING in config.py
-        # Format: "model-name": {"input": X.XX, "output": X.XX} per million tokens
-        print(f"[DB] WARNING: no pricing found for model '{model_used}' "
-              f"— cost recorded as $0.00. "
-              f"Fix: add '{model_used}' to MODEL_PRICING in config.py.")
+        print(format_warning(
+            "WARN", "database.py", "compute_call_cost()",
+            f"no pricing found for model '{model_used}' "
+            f"— cost recorded as $0.00",
+            f"add '{model_used}' to MODEL_PRICING in config.py"
+        ))
         return 0.0
 
     input_cost  = (input_tokens  / 1_000_000) * pricing["input"]
@@ -457,7 +468,11 @@ def get_estimated_balance():
                 "estimated_remaining":   estimated_remaining,
             }
     except Exception as e:
-        print(f"[DB] get_estimated_balance failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "get_estimated_balance()",
+            f"failed to query balance_ledger or llm_calls — {e}",
+            "check prices.db is not locked by another process"
+        ))
         return None
 
 
@@ -483,7 +498,11 @@ def get_latest_market_history_date(ticker):
             ).fetchone()
             return row["latest"]  # None if no rows exist
     except Exception as e:
-        print(f"[DB] get_latest_market_history_date failed for {ticker}: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "get_latest_market_history_date()",
+            f"failed to query market_history for '{ticker}' — {e}",
+            "check prices.db is accessible and market_history table exists"
+        ))
         return None
 
 
@@ -515,7 +534,11 @@ def write_market_history_rows(rows):
             )
         return len(rows)
     except Exception as e:
-        print(f"[DB] write_market_history_rows failed, rolled back: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "write_market_history_rows()",
+            f"batch insert to market_history failed and rolled back — {e}",
+            "check prices.db is not locked and disk has sufficient space"
+        ))
         raise
 
 
@@ -547,7 +570,11 @@ def start_run(run_id, data_mode="fixture"):
             )
         print(f"[DB] Run started: {run_id} — mode: {data_mode}")
     except Exception as e:
-        print(f"[DB] start_run failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "start_run()",
+            f"failed to insert run_log row for run_id '{run_id}' — {e}",
+            "check prices.db is not locked by another process"
+        ))
         raise
 
 
@@ -607,7 +634,12 @@ def finish_run(run_id, status="complete", stats=None):
                 )
         print(f"[DB] Run finished: {run_id} — {status}")
     except Exception as e:
-        print(f"[DB] finish_run failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "finish_run()",
+            f"failed to update run_log for run_id '{run_id}' — {e}",
+            "check prices.db is not locked — run_log row may stay "
+            "in 'running' status until manually corrected"
+        ))
         raise
 
 
@@ -651,7 +683,11 @@ def write_prices(run_id, price_data, capture_context="unclassified"):
                 rows_written += 1
         print(f"[DB] Prices written: {rows_written} rows for run {run_id}")
     except Exception as e:
-        print(f"[DB] write_prices failed, rolled back: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "write_prices()",
+            f"failed to write prices for run_id '{run_id}' — {e}",
+            "check prices.db is not locked and disk has sufficient space"
+        ))
         raise
 
 
@@ -697,7 +733,12 @@ def write_analysis(run_id, output_text, analysis_type,
               + f" for run {run_id}")
         return row_id
     except Exception as e:
-        print(f"[DB] write_analysis failed, rolled back: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "write_analysis()",
+            f"failed to write analysis type '{analysis_type}' "
+            f"for run_id '{run_id}' — {e}",
+            "check prices.db is not locked and disk has sufficient space"
+        ))
         raise
 
 
@@ -730,13 +771,22 @@ def write_signal(run_id, ticker, signal_type, value=None, threshold=None,
                 ),
             )
     except Exception as e:
-        print(f"[DB] write_signal failed, rolled back: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "write_signal()",
+            f"failed to write signal type '{signal_type}' for "
+            f"ticker '{ticker}' in run_id '{run_id}' — {e}",
+            "check prices.db is not locked and disk has sufficient space"
+        ))
         raise
 
 
 def write_persona_call(run_id, persona, ticker, direction=None,
                        confidence_score=None, regime_tag=None,
-                       vix_level=None, rationale_summary=None):
+                       vix_level=None, rationale_summary=None,
+                       price_at_signal=None):
+    # price_at_signal: the price of this ticker at moment of call.
+    # Logged at write time — immutable baseline for outcome scoring.
+    # None on first write — updated immediately after by the caller.
     """
     Writes one row to the persona_calls voting ledger.
     Called once per persona per ticker per run.
@@ -753,16 +803,25 @@ def write_persona_call(run_id, persona, ticker, direction=None,
                 """
                 INSERT INTO persona_calls
                     (run_id, persona, ticker, direction, confidence_score,
-                     regime_tag, vix_level, rationale_summary)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     regime_tag, vix_level, rationale_summary, price_at_signal)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id, persona, ticker, direction, confidence_score,
-                    regime_tag, vix_level, rationale_summary,
+                    regime_tag, vix_level, rationale_summary, price_at_signal,
                 ),
+                # price_at_signal starts NULL — filled by run_stage1_agent()
+                # and run_contrarian() after the call using the prices table.
+                # Immutable from that point — used as baseline for +5/+20
+                # trading-day outcome scoring.
             )
     except Exception as e:
-        print(f"[DB] write_persona_call failed, rolled back: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "write_persona_call()",
+            f"failed to write persona_call for '{persona}' on "
+            f"'{ticker}' in run_id '{run_id}' — {e}",
+            "check prices.db is not locked and disk has sufficient space"
+        ))
         raise
 
 
@@ -802,7 +861,13 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                 ),
             )
     except Exception as e:
-        print(f"[DB] write_llm_call failed, rolled back: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "write_llm_call()",
+            f"failed to write llm_call type '{call_type}' for "
+            f"run_id '{run_id}' — {e}",
+            "check prices.db is not locked — cost tracking for "
+            "this call will be missing from run summary"
+        ))
         raise
 
 
@@ -831,7 +896,11 @@ def log_balance_topup(amount_usd, notes=None):
         print(f"[DB] Balance topup logged: ${amount_usd:.2f} — "
               f"estimated remaining: ${balance_after:.2f}")
     except Exception as e:
-        print(f"[DB] log_balance_topup failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "log_balance_topup()",
+            f"failed to write balance topup of ${amount_usd:.2f} — {e}",
+            "re-run tools/set_anthropic_balance.py to log the topup manually"
+        ))
         raise
 
 
@@ -859,7 +928,11 @@ def read_recent_prices(ticker, limit=5):
             )
             return cursor.fetchall()
     except Exception as e:
-        print(f"[DB] read_recent_prices failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "read_recent_prices()",
+            f"failed to read prices for '{ticker}' — {e}",
+            "check prices.db is accessible and prices table exists"
+        ))
         return []
 
 
@@ -884,7 +957,11 @@ def read_market_history(ticker, limit=30):
             )
             return cursor.fetchall()
     except Exception as e:
-        print(f"[DB] read_market_history failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "read_market_history()",
+            f"failed to read market_history for '{ticker}' — {e}",
+            "check prices.db is accessible and market_history table exists"
+        ))
         return []
 
 
@@ -909,7 +986,11 @@ def read_recent_signals(triggered_only=True, limit=20):
             )
             return cursor.fetchall()
     except Exception as e:
-        print(f"[DB] read_recent_signals failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "read_recent_signals()",
+            f"failed to read signals table — {e}",
+            "check prices.db is accessible and signals table exists"
+        ))
         return []
 
 
@@ -935,5 +1016,9 @@ def read_run_history(limit=10):
             )
             return cursor.fetchall()
     except Exception as e:
-        print(f"[DB] read_run_history failed: {e}")
+        print(format_warning(
+            "ERROR", "database.py", "read_run_history()",
+            f"failed to read run_log table — {e}",
+            "check prices.db is accessible and run_log table exists"
+        ))
         return []
