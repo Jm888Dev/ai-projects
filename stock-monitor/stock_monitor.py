@@ -7,9 +7,10 @@
 # persona_calls and signals writes added.
 
 import time
+import sqlite3
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import yfinance as yf
 import anthropic
@@ -44,6 +45,70 @@ load_dotenv()
 # All call_llm() calls share this single client instance.
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
+def check_stuck_runs():
+    """
+    Finds run_log rows stuck in 'running' status from crashed sessions
+    and marks them failed before the scheduler fires a new run.
+
+    Why this runs first: a crashed run leaves status='running' forever.
+    Without this check, stale run_ids contaminate the next run's context.
+    Same principle as a settlement system clearing unresolved prior-day
+    positions before the next session opens.
+    """
+
+    # Calculate the cutoff — any 'running' row older than this is stuck
+    cutoff = datetime.now() - timedelta(minutes=config.STUCK_RUN_THRESHOLD_MINUTES)
+    cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+
+        # Find stuck runs older than the threshold
+        cursor.execute("""
+            SELECT run_id, started_at
+            FROM run_log
+            WHERE status = 'running'
+            AND started_at < ?
+        """, (cutoff_str,))
+
+        stuck = cursor.fetchall()
+
+        if not stuck:
+            conn.close()
+            return 0  # Nothing stuck — clean slate
+
+        # Mark each stuck run as failed
+        for run_id, started_at in stuck:
+            cursor.execute("""
+                UPDATE run_log
+                SET status = 'failed',
+                    completed_at = ?,
+                    notes = 'Marked failed by stuck-run detection at session start'
+                WHERE run_id = ?
+            """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), run_id))
+
+            print(format_warning(
+                severity="WARN",
+                file="stock_monitor.py",
+                function="check_stuck_runs()",
+                description=f"Stuck run detected — run_id '{run_id}' started at {started_at} had status='running' for more than {STUCK_RUN_THRESHOLD_MINUTES} minutes",
+                fix="Run has been marked failed. Check logs for that run_id to diagnose the crash."
+            ))
+
+        conn.commit()
+        conn.close()
+        return len(stuck)  # Return count so main() can include it in run summary
+
+    except Exception as e:
+        print(format_warning(
+            severity="ERROR",
+            file="stock_monitor.py",
+            function="check_stuck_runs()",
+            description=f"Could not query run_log for stuck runs — {str(e)}",
+            fix="Check that prices.db exists and run_log table is intact. Run database.py directly to verify."
+        ))
+        return 0
 
 # ─────────────────────────────────────────────────────────────
 # STEP 1 — KILL TRIGGER CHECKER
@@ -1457,6 +1522,10 @@ def main():
         # Non-blocking — runs before kill triggers so scored data
         # is available if any downstream function queries outcomes
         score_persona_call_outcomes()
+        
+        # Check for crashed runs from previous sessions before doing anything else
+        stuck_count = check_stuck_runs()
+
 
         # ── Kill trigger check ──
         # Must run before any data fetch so active triggers are
@@ -1769,6 +1838,8 @@ def main():
         print(f"── {error_count} error(s), {warning_count} warning(s) ──"
               + "─" * 20)
         print("─" * 50)
+
+        print(f"  Stuck runs cleared:  {stuck_count}")
 
         database.finish_run(run_id, status="complete", stats=stats)
 

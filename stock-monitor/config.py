@@ -582,3 +582,13 @@ def _deep_update(base, overrides):
 # Agents import config and read TICKER_THESIS — they automatically
 # get the patched version without any change to pipeline code.
 _deep_update(TICKER_THESIS, _load_thesis_overrides())
+
+# --- Scheduler & Resilience ---
+# Time the pipeline fires daily — matches Windows Task Scheduler trigger
+SCHEDULE_TIME = "12:00"
+
+# If a run exceeds this many minutes, it is killed and marked failed
+MAX_RUN_MINUTES = 30
+
+# run_log rows with status='running' older than this are marked failed (stale lock cleanup)
+STUCK_RUN_THRESHOLD_MINUTES = 60
