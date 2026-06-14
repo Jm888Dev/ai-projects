@@ -1,0 +1,9 @@
+# Virtual environment — too large for GitHub, rebuilt with pip install
+myenv/
+
+# API keys — never commit these
+.env
+
+# Python cache files — auto-generated, not needed in version control
+__pycache__/
+*.pyc
