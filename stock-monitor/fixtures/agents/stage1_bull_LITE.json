@@ -4,13 +4,13 @@
   "ticker": "LITE",
   "direction": "ACCUMULATE",
   "confidence": 4,
-  "primary_argument": "LITE's 5.4% drawdown is a capitulation flush in a structurally intact thesis — the copper-to-light transition is non-discretionary infrastructure, NVDA cluster density is accelerating, and today's low-volume decline (-0.4x 30-day average) signals weak conviction selling rather than thesis invalidation.",
-  "supporting_evidence": "NVDA down only -0.75% and TSM down only -0.13% today, confirming upstream chain health remains intact; LITE trades 13.0% below its 10-day high of $1029.15 but still above its 50-day MA of $887.51, positioning it for mean reversion within the normal volatility regime; the 5-day -13.0% drawdown is a 3-sigma move on low volume, textbook panic capitulation in a frontier position.",
-  "key_assumption": "The thesis assumes that hyperscaler optical interconnect adoption is mandatory at the scale NVDA clusters are reaching — if hyperscalers can sustain current cluster performance with copper-only architectures or delay optical migration beyond 12 months, the entire LITE upside case collapses.",
-  "regime_sensitivity": "In low-VIX regime (current state at 18.83), this call holds at high conviction — frontier bets compress during calm markets and LITE's drawdown is noise. If VIX spikes above 25, institutional deleveraging could force LITE lower regardless of thesis health, and the small position sizing becomes critical to portfolio resilience. The call weakens only if VIX rise correlates with NVDA weakness, signaling demand destruction rather than liquidity event.",
+  "primary_argument": "LITE is outperforming its entire upstream chain today (+1.92% vs NVDA -0.38%, AVGO -0.85%, TSM +0.46%) on normal volume, signaling independent momentum and market recognition that optical interconnect adoption is accelerating regardless of near-term semiconductor noise.",
+  "supporting_evidence": "LITE +1.92% while NVDA declined 0.38% and AVGO fell 0.85% demonstrates relative strength in the photonics layer; SMH +1.09% confirms semiconductor sector tailwind; VIX -9.10% to $17.68 in normal regime removes fear discount and allows growth thesis to re-rate without volatility drag.",
+  "key_assumption": "The copper-to-light transition inside hyperscaler data centres is structural and independent of quarterly NVDA demand fluctuations — optical interconnect adoption continues as long as AI cluster density increases, which is determined by model scaling laws, not near-term chip sales cycles.",
+  "regime_sensitivity": "In high_vix regime (>25), this call weakens materially because LITE's small position sizing and frontier-bet classification make it a first-to-liquidate in risk-off rotations, and VIX expansion typically triggers de-risking of downstream bets before upstream anchors. In current normal_vix regime, the thesis has room to run without forced selling pressure.",
   "watch_items": [
-    "NVDA cluster architecture announcement revealing Blackwell NVLink density below 400Gbps per socket, or any guidance suggesting optical interconnect adoption delay beyond Q4 2026 — this directly invalidates the mandatory-infrastructure thesis",
-    "LITE earnings guidance showing >40% customer concentration in single hyperscaler with flat or negative YoY optical interconnect order growth — signals demand is weaker than thesis assumes and margin compression risk is real"
+    "NVDA cluster architecture announcement that reduces NVLink density or extends copper interconnect viability beyond current roadmap — would invalidate the mandatory optical transition thesis",
+    "LITE earnings guidance showing sequential decline in hyperscaler customer orders or increased customer concentration risk (>40% revenue from single customer) — would signal adoption stalling before price reflects it"
   ]
 }
 ```

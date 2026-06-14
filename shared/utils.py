@@ -148,6 +148,132 @@ def extract_json(raw):
     except json.JSONDecodeError as e:
         return None, str(e)
 
+# ─────────────────────────────────────────────────────────────
+# OLLAMA LOCAL INFERENCE
+# ─────────────────────────────────────────────────────────────
+
+def _call_ollama(prompt, system=None, model="phi4-mini",
+                 max_tokens=1024, temperature=0.3,
+                 base_url="http://localhost:11434/api/chat",
+                 timeout=300):
+    """
+    Makes a single inference call to the local Ollama REST endpoint.
+
+    Sovereign tier — no data leaves the machine. No Anthropic client
+    needed. Pure requests.post() to localhost.
+
+    Why a separate function and not inline in call_llm()?
+    Separation of concerns. call_llm() handles routing, retries,
+    fixture logic, and warnings. _call_ollama() does one thing:
+    send a prompt to Ollama and return text + token counts.
+    If Ollama's API changes, this is the only function that needs
+    updating — call_llm() is untouched.
+
+    Parameters:
+      prompt:      user message content
+      system:      system prompt (injected as system role message)
+      model:       Ollama model tag e.g. 'phi4-mini', 'gemma4:e4b'
+      max_tokens:  maximum tokens in response (num_predict in Ollama)
+      temperature: sampling temperature
+      base_url:    Ollama chat endpoint — always localhost, never external
+      timeout:     seconds before request times out — heavy models need
+                   up to 300 seconds on CPU-only hardware
+
+    Returns (text, usage_dict) matching call_llm() return format.
+    usage_dict contains: input_tokens, output_tokens, model_used,
+    fallback_used, stop_reason, thinking_tokens.
+
+    Sovereignty rule: base_url must always be localhost.
+    If base_url ever points outside localhost, this function is
+    being misused — the sovereign tier must never phone home.
+    """
+    import requests
+
+    # Sovereignty guard — localhost only, no exceptions
+    # If this fires, something upstream has misconfigured OLLAMA_BASE_URL
+    if "localhost" not in base_url and "127.0.0.1" not in base_url:
+        raise ValueError(
+            f"_call_ollama() sovereignty violation: base_url '{base_url}' "
+            f"points outside localhost. The sovereign SLM tier must never "
+            f"send data to an external endpoint. Check OLLAMA_BASE_URL "
+            f"in config.py — it must always be http://localhost:11434/api/chat"
+        )
+
+    # Build messages array — Ollama chat endpoint uses OpenAI-style
+    # messages format: list of role/content dicts.
+    # System prompt injected as first message with role='system'
+    # if provided — same pattern as Anthropic's system= parameter
+    # but embedded in the messages array instead.
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+
+    # Build request payload
+    # num_predict = max output tokens (Ollama's name for max_tokens)
+    # stream=False — wait for complete response, simpler parsing
+    # options dict controls sampling parameters
+    payload = {
+        "model":    model,
+        "messages": messages,
+        "stream":   False,
+        "options": {
+            "num_predict":  max_tokens,
+            "temperature":  temperature,
+        },
+    }
+
+    # POST to Ollama — raw requests, no SDK, no vendor abstraction.
+    # This is intentional — sovereignty principle requires independence
+    # from any vendor's Python package.
+    response = requests.post(
+        base_url,
+        json=payload,
+        timeout=timeout,
+    )
+
+    # Raise on HTTP error — 4xx/5xx become exceptions that
+    # call_llm()'s error handling catches and formats as warnings
+    response.raise_for_status()
+
+    data = response.json()
+
+    # Extract response text from Ollama's response structure:
+    # data["message"]["content"] is the assistant's reply
+    text = data.get("message", {}).get("content", "")
+
+    # Extract token counts — Ollama returns these in the response root
+    # prompt_eval_count = input tokens (what Ollama counted)
+    # eval_count        = output tokens generated
+    # These may differ from Anthropic's tokenizer counts — that delta
+    # is the shadow cost calibration signal logged in llm_calls
+    input_tokens  = data.get("prompt_eval_count", 0)
+    output_tokens = data.get("eval_count", 0)
+
+    # thinking_tokens — Ollama returns this separately when thinking
+    # mode is active (Gemma4 with <|think|> token in system prompt).
+    # Zero for models without thinking mode or when thinking disabled.
+    # Logged to llm_calls.thinking_tokens for Day 17 audit analysis.
+    thinking_tokens = data.get("thinking_eval_count", 0)
+
+    # stop_reason — Ollama calls this done_reason
+    # "stop" = completed normally (equivalent to Anthropic's "end_turn")
+    # "length" = hit num_predict limit (equivalent to "max_tokens")
+    # Map to Anthropic convention so call_llm() truncation logic
+    # works identically regardless of which tier produced the response
+    raw_stop = data.get("done_reason", "stop")
+    stop_reason = "max_tokens" if raw_stop == "length" else "end_turn"
+
+    usage = {
+        "input_tokens":   input_tokens,
+        "output_tokens":  output_tokens,
+        "model_used":     model,
+        "fallback_used":  False,
+        "stop_reason":    stop_reason,
+        "thinking_tokens": thinking_tokens,
+    }
+
+    return text, usage
 
 # ─────────────────────────────────────────────────────────────
 # LLM WRAPPER
@@ -156,7 +282,10 @@ def extract_json(raw):
 def call_llm(prompt, system=None, model=None, max_tokens=1024,
              temperature=0.3, fallback_model=None, client=None,
              call_type=None, use_live_agents=True,
-             capture_fixtures=False, fixture_dir=None):
+             capture_fixtures=False, fixture_dir=None,
+             use_slm=False, slm_model=None,
+             ollama_base_url="http://localhost:11434/api/chat",
+             ollama_timeout=300):
     """
     Universal wrapper for all Claude API calls across both projects.
 
@@ -257,6 +386,143 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
             print(f"\n{msg}")
             raise FileNotFoundError(msg)
     # ── End fixture load logic ────────────────────────────────
+
+# ── SLM sovereign tier routing ────────────────────────────
+    # When use_slm=True, route to local Ollama — no Anthropic client
+    # needed, no data leaves the machine.
+    # use_live_agents is implied True when use_slm=True — the wrapper
+    # enforces this so fixture mode and SLM mode are never combined
+    # accidentally (fixtures replay Anthropic outputs, not SLM outputs,
+    # unless captured from an SLM run deliberately).
+    if use_slm:
+        if not slm_model:
+            msg = format_warning(
+                "ERROR", "shared/utils.py", "call_llm()",
+                "use_slm=True but slm_model was not provided",
+                "pass slm_model from your project wrapper — "
+                "see sm_call_llm() in stock_monitor.py for the pattern"
+            )
+            print(msg)
+            raise ValueError(msg)
+
+        try:
+            text, slm_usage = _call_ollama(
+                prompt=prompt,
+                system=system,
+                model=slm_model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                base_url=ollama_base_url,
+                timeout=ollama_timeout,
+            )
+
+            # Inject standard fields expected by all callers
+            slm_usage["fallback_used"] = False
+            slm_usage["retried"]       = False
+            slm_usage["truncated"]     = False
+            slm_usage["retry_budget"]  = None
+            slm_usage["warnings"]      = []
+
+            # Handle truncation — same logic as Anthropic tier
+            # stop_reason already mapped to "max_tokens" by _call_ollama()
+            if slm_usage["stop_reason"] == "max_tokens":
+                retry_budget = int(max_tokens * 1.5)
+                print(f"[call_llm] SLM truncation on {slm_model} — "
+                      f"retrying at {retry_budget} tokens")
+                try:
+                    text, retry_usage = _call_ollama(
+                        prompt=prompt,
+                        system=system,
+                        model=slm_model,
+                        max_tokens=retry_budget,
+                        temperature=temperature,
+                        base_url=ollama_base_url,
+                        timeout=ollama_timeout,
+                    )
+                    slm_usage["retried"]       = True
+                    slm_usage["retry_budget"]  = retry_budget
+                    slm_usage["input_tokens"]  = retry_usage["input_tokens"]
+                    slm_usage["output_tokens"] = retry_usage["output_tokens"]
+                    slm_usage["stop_reason"]   = retry_usage["stop_reason"]
+
+                    if retry_usage["stop_reason"] == "max_tokens":
+                        slm_usage["truncated"] = True
+                        text = (
+                            text
+                            + "\n\n[TRUNCATION_FLAG: SLM output reached token "
+                            "limit after retry. Reasoning may be incomplete.]"
+                        )
+                    else:
+                        print(f"[call_llm] SLM retry resolved truncation.")
+
+                except Exception as retry_err:
+                    msg = format_warning(
+                        "WARN", "shared/utils.py", "call_llm()",
+                        f"SLM truncation retry failed for '{slm_model}' "
+                        f"— {retry_err}",
+                        "raise OLLAMA_TIMEOUT in config.py or reduce "
+                        "max_tokens for this stage"
+                    )
+                    print(msg)
+                    slm_usage["warnings"].append(msg)
+                    slm_usage["truncated"] = True
+                    text = (
+                        text
+                        + "\n\n[TRUNCATION_FLAG: SLM retry failed. "
+                        "Output may be incomplete.]"
+                    )
+
+            # Fixture capture — SLM responses can be captured exactly
+            # like Anthropic responses. Same file format, same replay.
+            # This is intentional — fixtures test pipeline logic,
+            # not model identity. A fixture from an SLM run replays
+            # identically regardless of which model produced it.
+            if call_type and capture_fixtures and _FIXTURE_DIR:
+                _FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
+                fixture_path = _FIXTURE_DIR / f"{call_type}.json"
+                try:
+                    with open(fixture_path, "w", encoding="utf-8") as f:
+                        f.write(text)
+                    print(f"[call_llm] SLM fixture captured: {call_type}.json")
+                except Exception as e:
+                    msg = format_warning(
+                        "WARN", "shared/utils.py", "call_llm()",
+                        f"SLM fixture capture failed for '{call_type}' "
+                        f"— {e}",
+                        f"check write permissions on {_FIXTURE_DIR}"
+                    )
+                    print(msg)
+                    slm_usage["warnings"].append(msg)
+
+            return text, slm_usage
+
+        except Exception as slm_error:
+            msg = format_warning(
+                "ERROR", "shared/utils.py", "call_llm()",
+                f"SLM call failed for model '{slm_model}' — {slm_error}",
+                "check Ollama is running: curl http://localhost:11434 "
+                "and verify model is pulled: ollama list"
+            )
+            print(msg)
+            warnings.append(msg)
+            empty_usage = {
+                "input_tokens":   0,
+                "output_tokens":  0,
+                "model_used":     slm_model,
+                "fallback_used":  False,
+                "stop_reason":    "error",
+                "retried":        False,
+                "truncated":      False,
+                "retry_budget":   None,
+                "thinking_tokens": 0,
+                "warnings":       warnings,
+            }
+            return (
+                f"[SLM_ERROR] Ollama call failed for '{slm_model}'. "
+                f"Error: {slm_error}",
+                empty_usage,
+            )
+    # ── End SLM routing ───────────────────────────────────────
 
     messages = [{"role": "user", "content": prompt}]
     call_kwargs = {

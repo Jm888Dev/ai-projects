@@ -4,16 +4,15 @@
   "ticker": "TSM",
   "direction": "HOLD",
   "confidence": 2,
-  "statistical_anchor": "TSM down 4.45% over 5 days but holding above 50-day MA ($391.04) at $427.5 (9.3% cushion). Current session shows -0.13% on 0.37x volume — noise, not conviction. Streak of 1 down session suggests momentum exhaustion, not acceleration. Price at 0.42 position in 10-day range indicates mid-range equilibrium, not directional commitment.",
-  "volume_assessment": "Today's volume is 37% of 30-day average — thin tape noise. The 5-day drawdown (-4.45%) lacks conviction backing. Low volume across entire chain (NVDA, AVGO, LITE all low volume) signals sector-wide tape thinness, not TSM-specific selling pressure. Move durability is poor; any reversal on normal volume would invalidate the downtrend.",
-  "trend_assessment": "Short-term momentum is negative (3-day: -4.07%, 5-day: -4.45%) but structural support is intact. Price remains 9.3% above 50-day MA ($391.04), indicating the intermediate trend (50-day) is still up. Streak of only 1 down session means no momentum cascade. Position at 0.42 in 10-day range (midpoint between $412.32 low and $446.69 high) shows price has not broken into either tail — this is equilibrium, not directional exhaustion.",
-  "regime_context": "Fed paused, rates stable at 4.2%, USD/SGD stable at 1.34. VIX at 18.83 in normal regime. This macro backdrop historically supports semiconductor valuations without compression. No rate shock or dollar spike to force multiple contraction. Taiwan Strait geopolitical risk remains structurally present but no new escalation signals this week — risk is priced in, not activated.",
+  "statistical_anchor": "TSM is +0.46% on 0.76x average volume in a choppy trend (3-day +3.96%, 5-day -0.44%), positioned 43% through its 10-day range, 4.87% below the 10-day high, and trading above its 50-day MA ($397.33). The data shows no directional conviction — volume is subaverage, momentum is mixed, and price is neither at range extremes nor decisively trending.",
+  "volume_assessment": "Volume is 76% of 30-day average on a +0.46% move — this is thin-tape noise, not conviction. The move lacks institutional backing. In a normal volatility regime with no macro catalyst this week, subaverage volume on a fractional gain suggests the move is technical mean-reversion within range, not the start of a directional trend. Durability is low.",
+  "trend_assessment": "TSM is in a choppy regime. The 3-day return of +3.96% is offset by a 5-day return of -0.44%, indicating whipsaw. Price sits at 0.43 of its 10-day range (midpoint bias), 4.87% below the 10-day high. The 2-session streak is too short to signal momentum. Trading above the 50-day MA ($397.33) is structurally positive, but the lack of follow-through volume and the mixed 5-day signal suggest this is consolidation, not acceleration.",
+  "regime_context": "Fed is data-dependent and paused; 10Y UST stable at 4.2%; USD/SGD stable at 1.34. This is a low-macro-friction environment. In such regimes, TSM historically trades on supply chain technicals and geopolitical risk, not rate signals. The absence of new Taiwan Strait escalation signals, export control announcements, or AI research catalysts this week removes the upside narrative drivers. The regime is neutral-to-mildly-supportive for semiconductors (SMH +1.09%, QQQ +0.27%), but TSM's relative underperformance (vs SMH and LITE +1.92%) suggests sector rotation away from foundry toward photonics.",
   "watch_items": [
-    "Break below 50-day MA at $391.04 on volume >0.8x average — would signal loss of intermediate support and warrant REDUCE",
-    "Sustained volume >1.2x average on down days — would indicate conviction selling vs. current noise; absence of this through next 2-3 sessions keeps HOLD intact",
-    "NVDA or AVGO break below their 50-day MAs — TSM is midstream; upstream weakness on conviction volume would precede TSM weakness and is the leading indicator to watch",
-    "CoWoS capacity utilisation data or guidance revision in next earnings — thesis anchor; absence of negative signal supports structural HOLD",
-    "Taiwan Strait escalation headline — permanent tail risk; monitor but do not overweight intra-week noise"
+    "Break above $445.65 (10-day high) on volume >1.0x 30-day average — would signal conviction and shift trend from choppy to directional up.",
+    "Close below $407.80 (10-day low) — would break the 50-day MA support structure and flip the statistical picture to REDUCE.",
+    "LITE +1.92% vs TSM +0.46% divergence — if photonics continues to outperform while TSM consolidates, flag as signal that CoWoS capacity is priced in and downstream adoption risk is rising.",
+    "NVDA volume signal — currently low volume on -0.38%. If NVDA remains low-volume weak, TSM lacks upstream demand catalyst and consolidation may extend or reverse."
   ]
 }
 ```

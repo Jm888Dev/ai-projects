@@ -30,13 +30,13 @@ from pathlib import Path  # builds fixture and env paths for shared/utils.py wra
 # from fixtures/normal_day.json.
 # False = fixture prices — zero cost, instant, no network needed
 # True  = live yfinance fetch — real prices, real session
-USE_LIVE_DATA = False
+USE_LIVE_DATA = True
 
 # USE_LIVE_AGENTS controls whether agents call the Claude API
 # or load pre-captured outputs from fixtures/agents/.
 # False = fixture agents — zero API cost, instant, deterministic
 # True  = live Claude API calls — real reasoning, real cost
-USE_LIVE_AGENTS = False
+USE_LIVE_AGENTS = True
 
 # CAPTURE_LIVE_DATA_FOR_FIXTURES controls whether a live price
 # fetch overwrites fixtures/normal_day.json.
@@ -87,9 +87,9 @@ _OPUS   = "claude-opus-4-8"
 #   Haiku in dev — acceptable for building and schema testing
 # Translator: always Haiku — plain English rewrite, no depth needed
 # Fallback: always Haiku — fast recovery on primary failure
-STAGE_1_MODEL    = _HAIKU
-STAGE_2_MODEL    = _HAIKU if DEV_MODE else _SONNET
-STAGE_3_MODEL    = _HAIKU if DEV_MODE else _SONNET
+STAGE_1_MODEL    = _HAIKU # Stage 1 (Analyst)
+STAGE_2_MODEL    = _HAIKU if DEV_MODE else _SONNET # Stage 2 (Contrarian) 
+STAGE_3_MODEL    = _HAIKU if DEV_MODE else _SONNET # Stage 3 (Meta-Agent)
 TRANSLATOR_MODEL = _HAIKU
 FALLBACK_MODEL   = _HAIKU
 
@@ -602,3 +602,85 @@ STUCK_RUN_THRESHOLD_MINUTES = 60
 FIXTURE_DIR        = Path(__file__).parent / "fixtures" / "agents"
 PRICE_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "normal_day.json"
 ENV_PATH           = Path(__file__).parent / ".env"
+
+# ── SLM CONFIGURATION ──────────────────────────────────────
+#
+# FULL MODE MATRIX — including SLM sovereign tier
+#
+# LIVE_DATA  LIVE_AGENTS  DEV_MODE  USE_SLM  SLM_MODE  SCENARIO                                         COST
+# ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+# False      False        True      False    —         Full fixture — build/test                        $0.00
+# True       False        True      False    —         Live prices + fixture agents                     $0.00
+# False      True         True      False    —         Fixture prices + live Haiku                     ~$0.05
+# False      True         False     False    —         Fixture prices + live Sonnet                    ~$0.30
+# True       True         True      False    —         Full live run — Haiku                           ~$0.05
+# True       True         False     False    —         Full live run — Sonnet/demo                     ~$0.30
+# True       True         False     True     fast      Full live — phi4-mini + gemma4:e4b               $0.00
+# True       True         False     True     heavy     Full live — phi4-mini + qwen3.6 + gemma4:26b     $0.00
+#
+# When USE_SLM=True, USE_LIVE_AGENTS is implied True regardless of its value.
+# SLM calls never touch the Anthropic API — full data sovereignty.
+#
+# SLM_MODE controls which models handle which stages:
+#   fast:  phi4-mini for Stage 1 + Translator, gemma4:e4b for Stage 2/3
+#   heavy: phi4-mini for Stage 1 + Translator, qwen3.6:35b-a3b for Stage 2,
+#          gemma4:26b for Stage 3 (full sovereign production run)
+#
+# USE_SLM=False leaves all existing routing unchanged.
+# Switch USE_SLM=True to go fully sovereign at zero API cost.
+
+# Master SLM switch
+# False = use Anthropic API tiers (existing behaviour, unchanged)
+# True  = route all agent calls to local Ollama (sovereign, $0.00)
+USE_SLM  = False
+
+# Active SLM tier — only relevant when USE_SLM=True
+# "fast"  = phi4-mini + gemma4:e4b  — dev runs, quick iteration
+# "heavy" = phi4-mini + qwen3.6 + gemma4:26b — sovereign production
+SLM_MODE = "fast"
+
+# ── SLM MODEL REGISTRY ─────────────────────────────────────
+# Ollama model tags — must match exactly what ollama list shows.
+# Change here to swap models — zero code changes needed elsewhere.
+SLM_FAST_MODEL  = "phi4-mini"         # fast tier default — Stage 1 + Translator
+SLM_HEAVY_MODEL = "qwen3.6:35b-a3b"   # heavy tier Stage 2 — deep reasoning
+SLM_HEAVY_MODEL_STAGE3 = "gemma4:26b" # heavy tier Stage 3 — sovereign Meta-Agent
+
+# Per-stage SLM model assignment
+# Controls which SLM model handles each pipeline stage.
+# Values are tier names — resolved to actual model by the wrapper.
+# Changing a stage from "fast" to "heavy" is a one-line edit here.
+# Stage 1 revisit: Day 21 (feeds added), Day 31 (geospatial added)
+SLM_STAGE_MODELS = {
+    "stage1":     "fast",   # phi4-mini — 28 calls/run, speed critical
+    "stage2":     "fast",   # gemma4:e4b — reasoning depth, one call/ticker
+    "stage3":     "heavy",  # heavy model — Meta-Agent, most critical call
+    "translator": "fast",   # phi4-mini — plain English, low complexity
+}
+
+# ── OLLAMA CONNECTION ───────────────────────────────────────
+# Local REST endpoint — never changes unless Ollama port is reconfigured.
+# Sovereign principle: this is a localhost address — no data leaves
+# the machine. If this URL ever points outside localhost, reject it.
+OLLAMA_BASE_URL = "http://localhost:11434/api/chat"
+OLLAMA_TIMEOUT  = 600  # seconds — heavy models need up to 5 minutes per call
+
+# ── SLM MODEL PRICING (shadow cost reference) ──────────────
+# SLM calls cost $0.00 — added here so MODEL_PRICING is complete
+# and shadow cost computation has a consistent reference point.
+# Ollama does not charge per token — these entries exist only to
+# make the pricing dict exhaustive and to document the zero-cost tier.
+MODEL_PRICING.update({
+    "phi4-mini":         {"input": 0.00, "output": 0.00},
+    "gemma4:e4b":        {"input": 0.00, "output": 0.00},
+    "qwen3.6:35b-a3b":   {"input": 0.00, "output": 0.00},
+    "gemma4:26b":        {"input": 0.00, "output": 0.00},
+})
+
+# ── SHADOW COST REFERENCE MODELS ───────────────────────────
+# When USE_SLM=True, the wrapper computes what this run would have
+# cost on cloud models using actual token counts from the SLM call.
+# These two model keys are the reference points for shadow cost rows
+# in the run summary comparison table.
+SHADOW_COST_HAIKU_MODEL  = "claude-haiku-4-5-20251001"
+SHADOW_COST_SONNET_MODEL = "claude-sonnet-4-6"

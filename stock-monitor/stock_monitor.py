@@ -67,18 +67,104 @@ client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 # ─────────────────────────────────────────────────────────────
 
 def sm_call_llm(**kwargs):
-    # Forwards all caller arguments untouched via **kwargs and injects
-    # the three fixture config values. Config declared once here —
-    # never repeated at any of the four call sites in this file.
-    # **kwargs = "collect everything the caller passed and forward it" —
-    # like a SWIFT intermediary that adds routing data and passes
-    # the original payment message through unchanged.
-    return call_llm(
+    """
+    Stock Monitor wrapper for call_llm().
+    Injects fixture config and SLM routing from config.py.
+    This is the only place these values are declared —
+    never repeated at call sites.
+
+    SLM routing logic:
+      USE_SLM=False → existing Anthropic routing unchanged
+      USE_SLM=True  → resolves which SLM model to use based on
+                       call_type and SLM_STAGE_MODELS, then routes
+                       to Ollama sovereign tier. USE_LIVE_AGENTS
+                       is implied True — SLM calls are always live.
+
+    Shadow cost computation:
+      When USE_SLM=True, computes hypothetical Haiku and Sonnet
+      cost from actual SLM token counts and adds to usage dict.
+      Used by run summary comparison table.
+    """
+
+    # ── Resolve SLM model if sovereign tier is active ─────────
+    use_slm   = config.USE_SLM
+    slm_model = None
+
+    if use_slm:
+        # Determine which stage this call belongs to from call_type.
+        # call_type format: "stage1_bull_NVDA", "stage2_contrarian_NVDA",
+        # "stage3_meta_agent", "translator"
+        call_type = kwargs.get("call_type", "")
+
+        if call_type.startswith("stage1"):
+            stage_key = "stage1"
+        elif call_type.startswith("stage2"):
+            stage_key = "stage2"
+        elif call_type.startswith("stage3"):
+            stage_key = "stage3"
+        elif call_type.startswith("translator"):
+            stage_key = "translator"
+        else:
+            stage_key = "stage1"  # safe default for unknown call types
+
+        # Look up which tier this stage should use
+        tier = config.SLM_STAGE_MODELS.get(stage_key, "fast")
+
+        # Resolve tier to actual model tag
+        if tier == "heavy":
+            # Stage 3 gets the dedicated heavy Stage 3 model
+            if stage_key == "stage3":
+                slm_model = config.SLM_HEAVY_MODEL_STAGE3
+            else:
+                slm_model = config.SLM_HEAVY_MODEL
+        else:
+            # fast tier — phi4-mini for all fast-tier stages
+            slm_model = config.SLM_FAST_MODEL
+
+    # ── Make the call ──────────────────────────────────────────
+    text, usage = call_llm(
         **kwargs,
-        use_live_agents=config.USE_LIVE_AGENTS,
+        use_live_agents=True if use_slm else config.USE_LIVE_AGENTS,
         capture_fixtures=config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES,
         fixture_dir=config.FIXTURE_DIR,
+        use_slm=use_slm,
+        slm_model=slm_model,
+        ollama_base_url=config.OLLAMA_BASE_URL,
+        ollama_timeout=config.OLLAMA_TIMEOUT,
     )
+
+    # ── Shadow cost computation ────────────────────────────────
+    # When SLM is active, actual cost is $0.00.
+    # Compute what this call would have cost on Haiku and Sonnet
+    # using the actual token counts from the SLM response.
+    # Added to usage dict so run summary can display the comparison table.
+    if use_slm:
+        input_tokens  = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+
+        haiku_pricing  = config.MODEL_PRICING.get(
+            config.SHADOW_COST_HAIKU_MODEL, {"input": 0, "output": 0}
+        )
+        sonnet_pricing = config.MODEL_PRICING.get(
+            config.SHADOW_COST_SONNET_MODEL, {"input": 0, "output": 0}
+        )
+
+        # Per-million-token pricing — divide by 1,000,000 to get per-token rate
+        usage["shadow_cost_haiku_usd"] = round(
+            (input_tokens  * haiku_pricing["input"]  / 1_000_000) +
+            (output_tokens * haiku_pricing["output"] / 1_000_000),
+            6
+        )
+        usage["shadow_cost_sonnet_usd"] = round(
+            (input_tokens  * sonnet_pricing["input"]  / 1_000_000) +
+            (output_tokens * sonnet_pricing["output"] / 1_000_000),
+            6
+        )
+
+        # Store the SLM model name used so run summary can display it
+        usage["slm_model_used"] = slm_model
+
+    return text, usage
 
 def sm_save_price_fixtures(price_data):
     # Passes the Stock Monitor fixture path and capture flag.
@@ -1519,7 +1605,13 @@ def main():
     database.initialise_db()
     run_id    = database.generate_run_id()
     data_mode = "live" if config.USE_LIVE_DATA else "fixture"
-    database.start_run(run_id, data_mode=data_mode)
+    database.start_run(
+    run_id,
+    data_mode=data_mode,
+    slm_model=config.SLM_FAST_MODEL if config.USE_SLM and config.SLM_MODE == "fast"
+              else config.SLM_HEAVY_MODEL if config.USE_SLM and config.SLM_MODE == "heavy"
+              else None,
+)
 
     run_start_time = time.time()
 

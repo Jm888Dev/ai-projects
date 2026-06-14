@@ -2,16 +2,17 @@
 {
   "persona": "pragmatist",
   "ticker": "AVGO",
-  "direction": "REDUCE",
-  "confidence": 3,
-  "statistical_anchor": "AVGO down 2.19% on 0.36x average volume (thin tape) while sitting 0.11 position in 10-day range (near lows). 5-day return of -17.64% and price $12.63 below 50-day MA ($400.15) signals deteriorating momentum. Streak of only 1 down session suggests move may not be exhausted, but thin volume indicates conviction is absent.",
-  "volume_assessment": "Volume signal is explicitly low at 0.36x 30-day average. The 2.19% decline is NOT backed by conviction volume — this is noise-driven selling on thin tape. Thin volume on down days historically precedes either reversal or acceleration depending on follow-through. Current tape does not establish whether this is capitulation or distribution. Risk: without volume confirmation, the move lacks durability in either direction.",
-  "trend_assessment": "Price is 17.64% below 10-day high ($481.57), trading at $387.52, which places it at 0.11 position in recent range (near the lows). 5-day return of -17.64% and 3-day return of -5.33% confirm short-term downtrend. Price is below 50-day MA ($400.15) by $12.63. No 200-day MA data available — insufficient long-term context. Momentum is deteriorating but streak of only 1 down session suggests the selloff is recent and may not be fully played out.",
-  "regime_context": "VIX at 18.83 (normal regime), 10Y UST stable at 4.2%, no macro events this week, no new export control announcements, no Taiwan escalation signals. Macro regime is benign and does not explain the 17.64% 5-day drawdown — this is idiosyncratic to AVGO or sector-wide semiconductor pressure. SMH down 0.92%, NVDA down 0.75%, LITE down 5.44% — AVGO's 2.19% decline is in line with semiconductor sector weakness but LITE's sharper drop suggests photonics-specific pressure. Stable rate environment does not support multiple compression narrative — this is demand or sentiment-driven.",
+  "direction": "HOLD",
+  "confidence": 2,
+  "statistical_anchor": "AVGO down 0.85% on normal volume (1.08x avg) with price at 0.09 position in 10-day range ($372.1–$481.57), 20.66% below recent high, trading below 50-day MA ($406.45). 5-day return is -3.66% against choppy trend with -1 session streak. Data shows exhaustion, not conviction in either direction.",
+  "volume_assessment": "Volume at 1.08x 30-day average is normal tape, not elevated conviction. The 0.85% decline occurred on routine volume — this is drift, not capitulation or accumulation. Volume signal does not validate the downward price move as structural. Thin conviction backing suggests noise rather than durable directional commitment.",
+  "trend_assessment": "AVGO is in choppy consolidation. Price sits 20.66% below 10-day high ($481.57) and 9% below 50-day MA ($406.45). The 5-day return of -3.66% shows recent weakness, but the 3-day return of +2.68% shows intra-period volatility. Single session streak (-1) indicates no momentum building. Position in range at 0.09 (near low) suggests potential support proximity, but no statistical evidence of reversal yet.",
+  "regime_context": "Fed paused, rates stable at 4.2% UST 10Y, USD stable. This regime historically supports semiconductor multiple stability but does not drive rotation. VIX down 9.1% to 17.68 (normal regime) removes fear premium that would compress AVGO valuation. Macro backdrop is neutral-to-supportive, not a tailwind. The thesis assumes hyperscaler custom silicon rotation, but macro regime does not independently validate that thesis — it simply does not contradict it.",
   "watch_items": [
-    "Volume conviction on next session: if AVGO closes down on >1.0x average volume, thin-tape noise thesis breaks and deterioration signal strengthens. If next session closes up on elevated volume, reversal probability increases materially.",
-    "Position in range relative to 10-day low ($385.73): if AVGO breaks below $385.73, it establishes new 10-day low and confirms downtrend acceleration. If AVGO rallies back above $400.15 (50-day MA) on volume >0.8x average, momentum exhaustion signal triggers.",
-    "Chain divergence: NVDA only down 0.75% vs AVGO down 2.19% — watch whether this widens further. If AVGO underperforms NVDA by >3% over next 3 sessions on thin volume, thesis-integrity flag: custom silicon decoupling narrative would require AVGO to outperform, not underperform, in a NVDA weakness environment."
+    "AVGO closes below $372.1 (10-day low) on elevated volume — signals breakdown below support and would shift direction to REDUCE",
+    "AVGO reclaims $406.45 (50-day MA) with volume >1.3x average — signals trend reversal and would shift direction to ACCUMULATE",
+    "NVDA-AVGO correlation divergence: if NVDA falls >2% while AVGO holds flat or rises — thesis rotation signal; if both fall together >2% — sector drawdown signal requiring EXIT evaluation",
+    "Volume spike >1.5x average on any directional move — would increase confidence from 2 to 4 regardless of direction"
   ]
 }
 ```

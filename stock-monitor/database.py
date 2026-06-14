@@ -1,6 +1,6 @@
-# database.py
+﻿# database.py
 # All database operations for the stock monitor.
-# Ten tables total — prices, market_history, analysis, signals,
+# Ten tables total - prices, market_history, analysis, signals,
 # run_log, llm_calls, sentences, persona_calls, balance_ledger,
 # model_registry.
 #
@@ -24,7 +24,7 @@ import config
 # Import format_warning from shared/utils.py for standardised warning messages.
 # All warnings in this file use the pipe-delimited format:
 #   SEVERITY | file | function() | description | fix
-# This makes warnings machine-readable — importable into Excel or SQLite.
+# This makes warnings machine-readable - importable into Excel or SQLite.
 sys.path.insert(0, str(Path(__file__).parent.parent / "shared"))
 from utils import format_warning
 
@@ -33,7 +33,7 @@ from utils import format_warning
 # TABLE DEFINITIONS
 # ─────────────────────────────────────────────────────────────
 
-# Models lookup — normalised model registry
+# Models lookup - normalised model registry
 # Prevents stale model name strings across runs
 # tier values: sonnet, haiku, opus, slm
 CREATE_MODELS_TABLE = """
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS models (
 )
 """
 
-# Raw price data — one row per ticker per run
+# Raw price data - one row per ticker per run
 # Purpose: audit trail of exactly what each agent saw at moment of reasoning
 # Separate from market_history which is the canonical daily close record
 # capture_context: market state at moment of capture
@@ -73,9 +73,9 @@ CREATE TABLE IF NOT EXISTS prices (
 )
 """
 
-# Daily market history — canonical OHLCV record per ticker per trading day
+# Daily market history - canonical OHLCV record per ticker per trading day
 # Purpose: trajectory analysis, moving averages, correlations, volatility
-# Separate from prices — this is market truth, prices is agent context
+# Separate from prices - this is market truth, prices is agent context
 # delta_pull: True means this row was added by a delta pull (not backfill)
 # source: yfinance (live), fixture (testing)
 # Unique constraint on date+ticker prevents duplicate rows on re-run
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS market_history (
 )
 """
 
-# Raw Claude outputs — one row per persona or translator call per run
+# Raw Claude outputs - one row per persona or translator call per run
 # analysis_type values:
 #   Stage 1: bull, bear, black_swan, pragmatist
 #   Stage 2: contrarian
@@ -116,9 +116,9 @@ CREATE TABLE IF NOT EXISTS analysis (
 )
 """
 
-# Derived signals — one row per flagged condition per run
+# Derived signals - one row per flagged condition per run
 # triggered = 1 means the condition fired
-# triggered = 0 means evaluated but not triggered — stored for near-miss queries
+# triggered = 0 means evaluated but not triggered - stored for near-miss queries
 # entity_a / relationship / entity_b are graph edge candidates for Day 45+
 # persona tracks which analyst raised the signal
 # signal_type values include: threshold_alert, kill_trigger, meta_decision,
@@ -148,9 +148,9 @@ CREATE TABLE IF NOT EXISTS signals (
 )
 """
 
-# Pipeline health — one row per run
-# status stays 'running' if pipeline crashes — detectable failure on Day 26
-# data_mode: live or fixture — filters out development runs from eval metrics
+# Pipeline health - one row per run
+# status stays 'running' if pipeline crashes - detectable failure on Day 26
+# data_mode: live or fixture - filters out development runs from eval metrics
 # total_cost_usd is the sum of all llm_calls.cost_usd for this run
 CREATE_RUN_LOG_TABLE = """
 CREATE TABLE IF NOT EXISTS run_log (
@@ -172,13 +172,14 @@ CREATE TABLE IF NOT EXISTS run_log (
     fallback_used               INTEGER DEFAULT 0,
     error_count                 INTEGER DEFAULT 0,
     total_cost_usd              REAL DEFAULT 0,
-    notes                       TEXT
+    notes                       TEXT,
+    slm_model                   TEXT
 )
 """
 
-# Full LLM audit trail — one row per call_llm() invocation
+# Full LLM audit trail - one row per call_llm() invocation
 # model_requested vs model_used captures fallback events
-# cost_usd computed at insert from config.MODEL_PRICING — not at query time
+# cost_usd computed at insert from config.MODEL_PRICING - not at query time
 # call_type identifies the stage and persona:
 #   stage1_bull, stage1_bear, stage1_black_swan, stage1_pragmatist,
 #   stage2_contrarian, stage3_meta_agent, translator
@@ -197,13 +198,17 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     cost_usd        REAL DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'success',
     error_message   TEXT,
-    retried         INTEGER DEFAULT 0,
-    truncated       INTEGER DEFAULT 0,
-    retry_budget    INTEGER
+    retried                 INTEGER DEFAULT 0,
+    truncated               INTEGER DEFAULT 0,
+    retry_budget            INTEGER,
+    thinking_tokens         INTEGER DEFAULT 0,
+    shadow_cost_haiku_usd   REAL,
+    shadow_cost_sonnet_usd  REAL
 )
 """
 
-# Discrete analytical sentences — RAG source from Day 20
+
+# Discrete analytical sentences - RAG source from Day 20
 # Parsed from analysis output at write time, not at query time
 # sentence_type and sentiment classified by Haiku call on Day 15
 CREATE_SENTENCES_TABLE = """
@@ -223,11 +228,11 @@ CREATE TABLE IF NOT EXISTS sentences (
 )
 """
 
-# Persona calls — the voting ledger
+# Persona calls - the voting ledger
 # One row per persona per ticker per run
-# Meta-Agent does NOT get a persona_calls row — it renders decisions,
+# Meta-Agent does NOT get a persona_calls row - it renders decisions,
 # not directional bets. Only Stage 1 agents and Contrarian are scored.
-# outcome starts NULL — filled at T+3 sessions or on 5%+ price move
+# outcome starts NULL - filled at T+3 sessions or on 5%+ price move
 # regime_tag derived from VIX at run time
 # direction values: ACCUMULATE / HOLD / REDUCE / EXIT
 # confidence_score: 0-100, Claude's self-estimated conviction
@@ -248,8 +253,8 @@ CREATE TABLE IF NOT EXISTS persona_calls (
 )
 """
 
-# Balance ledger — manual cost tracking for the Anthropic API account
-# Anthropic's official Usage API requires Team/Enterprise plan —
+# Balance ledger - manual cost tracking for the Anthropic API account
+# Anthropic's official Usage API requires Team/Enterprise plan -
 # not available on individual API accounts.
 # Local approach: compute cost from MODEL_PRICING at each llm_calls insert,
 # accumulate per run, reconcile against actual billing periodically.
@@ -288,11 +293,11 @@ CREATE TABLE IF NOT EXISTS thesis_drafts (
 )
 """
 
-# Human decisions on thesis drafts — the review ledger
+# Human decisions on thesis drafts - the review ledger
 # action values: approved / rejected / modified
-# modified_text: only populated when action = 'modified' — the human's version
+# modified_text: only populated when action = 'modified' - the human's version
 # reason: why the human accepted, rejected, or changed the draft
-# reviewer: who reviewed (defaults to 'human' — future: could be a persona name)
+# reviewer: who reviewed (defaults to 'human' - future: could be a persona name)
 # source: ai_draft (system-generated) or human_initiated (manually triggered)
 CREATE_THESIS_REVIEWS_TABLE = """
 CREATE TABLE IF NOT EXISTS thesis_reviews (
@@ -309,6 +314,31 @@ CREATE TABLE IF NOT EXISTS thesis_reviews (
 )
 """
 
+# SLM benchmark results - performance and quality tracking per model
+# One row per model per prompt size per benchmark run
+# json_valid: 1 if response parsed as valid JSON
+# direction_valid: 1 if direction field is ACCUMULATE/HOLD/REDUCE/EXIT
+# hallucination_flag: 1 if model invented fields not in schema or
+#                     returned direction outside valid values
+CREATE_SLM_BENCHMARKS_TABLE = """
+CREATE TABLE IF NOT EXISTS slm_benchmarks (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    benchmark_run_id    TEXT NOT NULL,
+    timestamp           TEXT NOT NULL,
+    model               TEXT NOT NULL,
+    prompt_size         TEXT NOT NULL,
+    prompt_mode         TEXT NOT NULL,
+    input_tokens        INTEGER,
+    output_tokens       INTEGER,
+    duration_secs       REAL,
+    tokens_per_sec      REAL,
+    max_tokens          INTEGER,
+    json_valid          INTEGER DEFAULT 0,
+    direction_valid     INTEGER DEFAULT 0,
+    hallucination_flag  INTEGER DEFAULT 0,
+    raw_response        TEXT
+)
+"""
 
 # ─────────────────────────────────────────────────────────────
 # CONNECTION
@@ -318,9 +348,9 @@ def get_connection():
     """
     Opens a SQLite connection with row_factory set.
     row_factory = sqlite3.Row lets you access columns by name
-    instead of index — row["ticker"] instead of row[2].
+    instead of index - row["ticker"] instead of row[2].
     The database file is created automatically if it does not exist.
-    Used as a context manager throughout — guarantees commit on
+    Used as a context manager throughout - guarantees commit on
     success and rollback on any exception.
     """
     conn = sqlite3.connect(config.DB_PATH)
@@ -335,7 +365,7 @@ def get_connection():
 def initialise_db():
     """
     Creates all tables and seeds the models lookup on first run.
-    Safe to call every run — IF NOT EXISTS prevents data loss.
+    Safe to call every run - IF NOT EXISTS prevents data loss.
     Call once at the start of stock_monitor.py before any writes.
     """
     with get_connection() as conn:
@@ -363,12 +393,22 @@ def initialise_db():
         cursor.execute(CREATE_THESIS_DRAFTS_TABLE)
         cursor.execute(CREATE_THESIS_REVIEWS_TABLE)
 
+        # SLM benchmarking
+        cursor.execute(CREATE_SLM_BENCHMARKS_TABLE)
+
         # Seed known models
-        # INSERT OR IGNORE — safe to re-run, never overwrites existing rows
+        # INSERT OR IGNORE - safe to re-run, never overwrites existing rows
         known_models = [
-            ("claude-haiku-4-5-20251001", "haiku-4-5",  "anthropic", "haiku"),
-            ("claude-sonnet-4-6",         "sonnet-4-6", "anthropic", "sonnet"),
-            ("claude-opus-4-8",           "opus-4-8",   "anthropic", "opus"),
+            # Anthropic cloud tier
+            ("claude-haiku-4-5-20251001", "haiku-4-5",       "anthropic", "haiku"),
+            ("claude-sonnet-4-6",         "sonnet-4-6",      "anthropic", "sonnet"),
+            ("claude-opus-4-8",           "opus-4-8",        "anthropic", "opus"),
+            # Sovereign SLM tier - fast
+            ("phi4-mini",                 "phi4-mini",       "ollama",    "slm"),
+            ("gemma4:e4b",               "gemma4-e4b",      "ollama",    "slm"),
+            # Sovereign SLM tier - heavy
+            ("qwen3.6:35b-a3b",          "qwen36-35b-a3b",  "ollama",    "slm"),
+            ("gemma4:26b",               "gemma4-26b",      "ollama",    "slm"),
         ]
         cursor.executemany(
             """
@@ -388,7 +428,7 @@ def initialise_db():
 def generate_run_id():
     """
     Generates a unique run identifier based on the current timestamp.
-    Format: YYYY-MM-DD_HH:MM:SS — human readable and sortable.
+    Format: YYYY-MM-DD_HH:MM:SS - human readable and sortable.
     Generate once at the start of each run and pass to all write
     functions. Used as the JOIN key across all tables.
     """
@@ -402,14 +442,14 @@ def generate_run_id():
 def compute_call_cost(model_used, input_tokens, output_tokens):
     """
     Computes the USD cost of a single LLM call from config.MODEL_PRICING.
-    Returns 0.0 for unknown models — never crashes the pipeline.
+    Returns 0.0 for unknown models - never crashes the pipeline.
     Pricing is per million tokens so we divide by 1,000,000.
     Called by write_llm_call() at insert time so cost is stored
-    permanently — historical cost data stays accurate even if
+    permanently - historical cost data stays accurate even if
     pricing changes later.
     """
     if model_used and model_used.startswith("fixture:"):
-        # Fixture calls have no API cost by design — zero is correct, not a warning
+        # Fixture calls have no API cost by design - zero is correct, not a warning
         return 0.0
 
     pricing = config.MODEL_PRICING.get(model_used)
@@ -417,7 +457,7 @@ def compute_call_cost(model_used, input_tokens, output_tokens):
         print(format_warning(
             "WARN", "database.py", "compute_call_cost()",
             f"no pricing found for model '{model_used}' "
-            f"— cost recorded as $0.00",
+            f"- cost recorded as $0.00",
             f"add '{model_used}' to MODEL_PRICING in config.py"
         ))
         return 0.0
@@ -433,14 +473,14 @@ def get_estimated_balance():
     Formula: sum of all topups and adjustments in balance_ledger
              minus sum of all cost_usd in llm_calls.
     Returns a dict with total_spent, total_topped_up, estimated_remaining.
-    Returns None if no balance_ledger entries exist yet — prompts the
+    Returns None if no balance_ledger entries exist yet - prompts the
     user to log their first topup before the estimate is meaningful.
     Note: this is an estimate. Reconcile against console.anthropic.com
     weekly by writing a 'reconcile' entry to balance_ledger.
     """
     try:
         with get_connection() as conn:
-            # Sum all manual entries — topups are positive, adjustments can be negative
+            # Sum all manual entries - topups are positive, adjustments can be negative
             topup_row = conn.execute(
                 "SELECT COALESCE(SUM(amount_usd), 0) AS total FROM balance_ledger"
             ).fetchone()
@@ -456,7 +496,7 @@ def get_estimated_balance():
             ).fetchone()
 
             if entry_count["cnt"] == 0:
-                return None  # No topup logged yet — estimate not meaningful
+                return None  # No topup logged yet - estimate not meaningful
 
             total_topped_up = round(topup_row["total"], 4)
             total_spent     = round(spent_row["total"], 4)
@@ -470,14 +510,14 @@ def get_estimated_balance():
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "get_estimated_balance()",
-            f"failed to query balance_ledger or llm_calls — {e}",
+            f"failed to query balance_ledger or llm_calls - {e}",
             "check prices.db is not locked by another process"
         ))
         return None
 
 
 # ─────────────────────────────────────────────────────────────
-# MARKET HISTORY — WRITE AND UPDATE
+# MARKET HISTORY - WRITE AND UPDATE
 # ─────────────────────────────────────────────────────────────
 
 def get_latest_market_history_date(ticker):
@@ -500,7 +540,7 @@ def get_latest_market_history_date(ticker):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "get_latest_market_history_date()",
-            f"failed to query market_history for '{ticker}' — {e}",
+            f"failed to query market_history for '{ticker}' - {e}",
             "check prices.db is accessible and market_history table exists"
         ))
         return None
@@ -509,12 +549,12 @@ def get_latest_market_history_date(ticker):
 def write_market_history_rows(rows):
     """
     Writes a batch of OHLCV rows into market_history.
-    rows is a list of dicts — each dict must contain:
+    rows is a list of dicts - each dict must contain:
         ticker, trade_date, open, high, low, close, volume,
         pct_change, source, inserted_at
     INSERT OR IGNORE on (ticker, trade_date) unique constraint
-    means re-running is safe — no duplicate rows, no crashes.
-    All rows write in one transaction — partial batch rolls back.
+    means re-running is safe - no duplicate rows, no crashes.
+    All rows write in one transaction - partial batch rolls back.
     """
     if not rows:
         return 0
@@ -536,14 +576,14 @@ def write_market_history_rows(rows):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "write_market_history_rows()",
-            f"batch insert to market_history failed and rolled back — {e}",
+            f"batch insert to market_history failed and rolled back - {e}",
             "check prices.db is not locked and disk has sufficient space"
         ))
         raise
 
 
 # ─────────────────────────────────────────────────────────────
-# WRITE FUNCTIONS — PIPELINE DATA
+# WRITE FUNCTIONS - PIPELINE DATA
 # All writes use the context manager pattern:
 #   with get_connection() as conn
 # This guarantees commit on success and rollback on failure.
@@ -551,28 +591,28 @@ def write_market_history_rows(rows):
 # knows a write failed and can update run_log accordingly.
 # ─────────────────────────────────────────────────────────────
 
-def start_run(run_id, data_mode="fixture"):
+def start_run(run_id, data_mode="fixture", slm_model=None):
     """
     Opens the run_log entry when a pipeline run begins.
-    data_mode: 'live' or 'fixture' — recorded so development runs
+    data_mode: 'live' or 'fixture' - recorded so development runs
     can be filtered out of persona accuracy evaluation on Day 15.
     Status 'running' stays permanently if the pipeline crashes
-    before finish_run() — a detectable failure mode on Day 26.
+    before finish_run() - a detectable failure mode on Day 26.
     """
     try:
         with get_connection() as conn:
             conn.execute(
                 """
-                INSERT INTO run_log (run_id, started_at, status, data_mode)
-                VALUES (?, ?, 'running', ?)
+                INSERT INTO run_log (run_id, started_at, status, data_mode, slm_model)
+                VALUES (?, ?, 'running', ?, ?)
                 """,
-                (run_id, datetime.now().isoformat(), data_mode),
+                (run_id, datetime.now().isoformat(), data_mode, slm_model),
             )
-        print(f"[DB] Run started: {run_id} — mode: {data_mode}")
+        print(f"[DB] Run started: {run_id} - mode: {data_mode}")
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "start_run()",
-            f"failed to insert run_log row for run_id '{run_id}' — {e}",
+            f"failed to insert run_log row for run_id '{run_id}' - {e}",
             "check prices.db is not locked by another process"
         ))
         raise
@@ -632,12 +672,12 @@ def finish_run(run_id, status="complete", stats=None):
                     """,
                     (datetime.now().isoformat(), status, run_id),
                 )
-        print(f"[DB] Run finished: {run_id} — {status}")
+        print(f"[DB] Run finished: {run_id} - {status}")
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "finish_run()",
-            f"failed to update run_log for run_id '{run_id}' — {e}",
-            "check prices.db is not locked — run_log row may stay "
+            f"failed to update run_log for run_id '{run_id}' - {e}",
+            "check prices.db is not locked - run_log row may stay "
             "in 'running' status until manually corrected"
         ))
         raise
@@ -649,11 +689,11 @@ def write_prices(run_id, price_data, capture_context="unclassified"):
     price_data is a list of dicts from the fetch pipeline.
     Each dict needs: ticker, instrument_type, price, prev_close, pct_change.
     capture_context is set by determine_capture_context() in the pipeline
-    before this is called — tells the reader what market state this
+    before this is called - tells the reader what market state this
     price represents (open, closed, high-volatility, etc).
     intraday_position and reconciliation default to NULL / 'unresolved'
     at write time. reconciliation is filled next session by reconcile_prices().
-    Skips tickers where price is None — failed fetches not stored.
+    Skips tickers where price is None - failed fetches not stored.
     """
     try:
         with get_connection() as conn:
@@ -685,7 +725,7 @@ def write_prices(run_id, price_data, capture_context="unclassified"):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "write_prices()",
-            f"failed to write prices for run_id '{run_id}' — {e}",
+            f"failed to write prices for run_id '{run_id}' - {e}",
             "check prices.db is not locked and disk has sufficient space"
         ))
         raise
@@ -702,10 +742,10 @@ def write_analysis(run_id, output_text, analysis_type,
         Translator: translator_[section]
     ticker is None for portfolio-level calls (contrarian, meta_agent,
     translator) and set for per-ticker Stage 1 and Stage 2 calls.
-    truncated=True flags that output was cut at token limit — signal
+    truncated=True flags that output was cut at token limit - signal
     is still stored and passed forward, downstream agents are aware
     via the TRUNCATION_FLAG appended to the text by call_llm().
-    Returns the inserted row id — needed by write_sentences() to link back.
+    Returns the inserted row id - needed by write_sentences() to link back.
     """
     try:
         with get_connection() as conn:
@@ -736,7 +776,7 @@ def write_analysis(run_id, output_text, analysis_type,
         print(format_warning(
             "ERROR", "database.py", "write_analysis()",
             f"failed to write analysis type '{analysis_type}' "
-            f"for run_id '{run_id}' — {e}",
+            f"for run_id '{run_id}' - {e}",
             "check prices.db is not locked and disk has sufficient space"
         ))
         raise
@@ -749,10 +789,10 @@ def write_signal(run_id, ticker, signal_type, value=None, threshold=None,
     """
     Writes one signal row per evaluated condition.
     triggered=1 means the threshold fired.
-    triggered=0 means evaluated but not triggered — stored for near-miss queries.
+    triggered=0 means evaluated but not triggered - stored for near-miss queries.
     entity_a / relationship / entity_b are graph edge candidates for Day 45+.
     outcome / resolved_by_run_id / human_override start NULL and are filled
-    by the T+3 scoring pass or on a 5%+ move — built on Day 10.
+    by the T+3 scoring pass or on a 5%+ move - built on Day 10.
     """
     try:
         with get_connection() as conn:
@@ -774,7 +814,7 @@ def write_signal(run_id, ticker, signal_type, value=None, threshold=None,
         print(format_warning(
             "ERROR", "database.py", "write_signal()",
             f"failed to write signal type '{signal_type}' for "
-            f"ticker '{ticker}' in run_id '{run_id}' — {e}",
+            f"ticker '{ticker}' in run_id '{run_id}' - {e}",
             "check prices.db is not locked and disk has sufficient space"
         ))
         raise
@@ -785,14 +825,14 @@ def write_persona_call(run_id, persona, ticker, direction=None,
                        vix_level=None, rationale_summary=None,
                        price_at_signal=None):
     # price_at_signal: the price of this ticker at moment of call.
-    # Logged at write time — immutable baseline for outcome scoring.
-    # None on first write — updated immediately after by the caller.
+    # Logged at write time - immutable baseline for outcome scoring.
+    # None on first write - updated immediately after by the caller.
     """
     Writes one row to the persona_calls voting ledger.
     Called once per persona per ticker per run.
-    Meta-Agent does NOT get a persona_calls row — it renders decisions,
+    Meta-Agent does NOT get a persona_calls row - it renders decisions,
     not directional bets. Only Stage 1 agents and Contrarian are scored.
-    outcome and resolved_by_run_id start NULL — filled at T+3 sessions
+    outcome and resolved_by_run_id start NULL - filled at T+3 sessions
     or on a 5%+ move by the scoring pass built on Day 10.
     direction values: ACCUMULATE / HOLD / REDUCE / EXIT
     regime_tag values: low_vix / normal / high_vix / crisis
@@ -810,16 +850,16 @@ def write_persona_call(run_id, persona, ticker, direction=None,
                     run_id, persona, ticker, direction, confidence_score,
                     regime_tag, vix_level, rationale_summary, price_at_signal,
                 ),
-                # price_at_signal starts NULL — filled by run_stage1_agent()
+                # price_at_signal starts NULL - filled by run_stage1_agent()
                 # and run_contrarian() after the call using the prices table.
-                # Immutable from that point — used as baseline for +5/+20
+                # Immutable from that point - used as baseline for +5/+20
                 # trading-day outcome scoring.
             )
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "write_persona_call()",
             f"failed to write persona_call for '{persona}' on "
-            f"'{ticker}' in run_id '{run_id}' — {e}",
+            f"'{ticker}' in run_id '{run_id}' - {e}",
             "check prices.db is not locked and disk has sufficient space"
         ))
         raise
@@ -828,14 +868,16 @@ def write_persona_call(run_id, persona, ticker, direction=None,
 def write_llm_call(run_id, call_type, model_requested, model_used,
                    fallback_used, input_tokens, output_tokens,
                    duration_secs, status="success", error_message=None,
-                   retried=False, truncated=False, retry_budget=None):
+                   retried=False, truncated=False, retry_budget=None,
+                   thinking_tokens=0, shadow_cost_haiku_usd=None,
+                   shadow_cost_sonnet_usd=None):
     """
     Writes one audit row per call_llm() invocation.
-    cost_usd computed at insert from config.MODEL_PRICING — stored
+    cost_usd computed at insert from config.MODEL_PRICING - stored
     permanently so historical cost data stays accurate even if
     pricing changes later.
     retried: 1 if a retry was triggered due to truncation.
-    truncated: 1 if output was still truncated after retry —
+    truncated: 1 if output was still truncated after retry -
                signal is passed through with TRUNCATION_FLAG appended.
     retry_budget: token budget used on retry, NULL if no retry.
     """
@@ -849,8 +891,10 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                     (run_id, timestamp, call_type, model_requested, model_used,
                      fallback_used, input_tokens, output_tokens, duration_secs,
                      cost_usd, status, error_message,
-                     retried, truncated, retry_budget)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     retried, truncated, retry_budget,
+                     thinking_tokens, shadow_cost_haiku_usd,
+                     shadow_cost_sonnet_usd)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id, datetime.now().isoformat(), call_type,
@@ -858,14 +902,16 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                     input_tokens, output_tokens, duration_secs,
                     cost_usd, status, error_message,
                     int(retried), int(truncated), retry_budget,
+                    thinking_tokens, shadow_cost_haiku_usd,
+                    shadow_cost_sonnet_usd,
                 ),
             )
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "write_llm_call()",
             f"failed to write llm_call type '{call_type}' for "
-            f"run_id '{run_id}' — {e}",
-            "check prices.db is not locked — cost tracking for "
+            f"run_id '{run_id}' - {e}",
+            "check prices.db is not locked - cost tracking for "
             "this call will be missing from run summary"
         ))
         raise
@@ -893,12 +939,12 @@ def log_balance_topup(amount_usd, notes=None):
                 """,
                 (datetime.now().isoformat(), amount_usd, balance_after, notes),
             )
-        print(f"[DB] Balance topup logged: ${amount_usd:.2f} — "
+        print(f"[DB] Balance topup logged: ${amount_usd:.2f} - "
               f"estimated remaining: ${balance_after:.2f}")
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "log_balance_topup()",
-            f"failed to write balance topup of ${amount_usd:.2f} — {e}",
+            f"failed to write balance topup of ${amount_usd:.2f} - {e}",
             "re-run tools/set_anthropic_balance.py to log the topup manually"
         ))
         raise
@@ -912,7 +958,7 @@ def read_recent_prices(ticker, limit=5):
     """
     Returns the most recent N price rows for a given ticker.
     Used to verify storage and on Day 10 for threshold comparisons.
-    Returns list of Row objects — access by column name: row["price"]
+    Returns list of Row objects - access by column name: row["price"]
     """
     try:
         with get_connection() as conn:
@@ -930,7 +976,7 @@ def read_recent_prices(ticker, limit=5):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "read_recent_prices()",
-            f"failed to read prices for '{ticker}' — {e}",
+            f"failed to read prices for '{ticker}' - {e}",
             "check prices.db is accessible and prices table exists"
         ))
         return []
@@ -940,8 +986,8 @@ def read_market_history(ticker, limit=30):
     """
     Returns the most recent N daily rows from market_history for a ticker.
     Used by build_historical_context() in the data package builder.
-    Default 30 days — enough for moving averages and correlations.
-    Returns list of Row objects — access by column name: row["close"]
+    Default 30 days - enough for moving averages and correlations.
+    Returns list of Row objects - access by column name: row["close"]
     """
     try:
         with get_connection() as conn:
@@ -959,7 +1005,7 @@ def read_market_history(ticker, limit=30):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "read_market_history()",
-            f"failed to read market_history for '{ticker}' — {e}",
+            f"failed to read market_history for '{ticker}' - {e}",
             "check prices.db is accessible and market_history table exists"
         ))
         return []
@@ -969,7 +1015,7 @@ def read_recent_signals(triggered_only=True, limit=20):
     """
     Returns recent signal rows, optionally filtered to triggered only.
     On Day 21 the agent reads this to decide what to surface.
-    Returns list of Row objects — access by column name: row["signal_type"]
+    Returns list of Row objects - access by column name: row["signal_type"]
     """
     try:
         with get_connection() as conn:
@@ -988,7 +1034,7 @@ def read_recent_signals(triggered_only=True, limit=20):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "read_recent_signals()",
-            f"failed to read signals table — {e}",
+            f"failed to read signals table - {e}",
             "check prices.db is accessible and signals table exists"
         ))
         return []
@@ -1018,7 +1064,9 @@ def read_run_history(limit=10):
     except Exception as e:
         print(format_warning(
             "ERROR", "database.py", "read_run_history()",
-            f"failed to read run_log table — {e}",
+            f"failed to read run_log table - {e}",
             "check prices.db is accessible and run_log table exists"
         ))
         return []
+
+
