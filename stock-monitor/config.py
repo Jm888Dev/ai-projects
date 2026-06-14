@@ -3,8 +3,9 @@
 # Nothing is hardcoded in the pipeline scripts.
 
 # Standard library imports — needed for thesis override loading
-import json   # reads thesis_overrides.json at startup
-import os     # builds file path relative to config.py location
+import json        # reads thesis_overrides.json at startup
+import os          # builds file path relative to config.py location
+from pathlib import Path  # builds fixture and env paths for shared/utils.py wrappers
 
 # ── DATA AND AGENT MODE ────────────────────────────────────
 #
@@ -592,3 +593,12 @@ MAX_RUN_MINUTES = 30
 
 # run_log rows with status='running' older than this are marked failed (stale lock cleanup)
 STUCK_RUN_THRESHOLD_MINUTES = 60
+
+# ── FIXTURE & ENV PATHS ────────────────────────────────────
+# Passed to shared/utils.py wrappers so shared functions never
+# construct project-specific paths themselves.
+# Path(__file__).parent = the stock-monitor/ folder —
+# works regardless of which directory the pipeline is run from.
+FIXTURE_DIR        = Path(__file__).parent / "fixtures" / "agents"
+PRICE_FIXTURE_PATH = Path(__file__).parent / "fixtures" / "normal_day.json"
+ENV_PATH           = Path(__file__).parent / ".env"

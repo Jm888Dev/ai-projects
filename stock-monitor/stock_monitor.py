@@ -5,6 +5,11 @@
 # Meta-Agent (Stage 3). Translator updated to consume Meta-Agent output.
 # Data package builder introduced. Kill trigger checker added.
 # persona_calls and signals writes added.
+#
+# Day 15: Removed direct config import from shared/utils.py.
+# Three project wrappers added (sm_call_llm, sm_save_price_fixtures,
+# sm_send_email_alert) — these are the only place Stock Monitor config
+# values are injected into shared functions. Call sites use wrappers only.
 
 import time
 import sqlite3
@@ -42,8 +47,58 @@ import database
 load_dotenv()
 
 # Initialise the Anthropic client once at module level.
-# All call_llm() calls share this single client instance.
+# All sm_call_llm() calls share this single client instance.
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# ─────────────────────────────────────────────────────────────
+# PROJECT WRAPPERS — inject Stock Monitor config into shared functions
+# These wrappers are the ONLY place config values are passed to
+# shared/utils.py. Call sites use the wrapper, never the raw function.
+# When HDB Analyser adopts these functions, it defines its own wrappers
+# in hdb_analyser.py — never touching these.
+#
+# WHY WRAPPERS INSTEAD OF PASSING CONFIG AT EVERY CALL SITE?
+# Each wrapper declares config values once. Four call sites that
+# previously would each need three extra arguments now need zero.
+# A future config rename is one edit here, not four edits scattered
+# across the file. This is the same principle as a treasury desk
+# having one standing instruction for FX hedging rather than
+# re-negotiating the terms on every individual trade.
+# ─────────────────────────────────────────────────────────────
+
+def sm_call_llm(**kwargs):
+    # Forwards all caller arguments untouched via **kwargs and injects
+    # the three fixture config values. Config declared once here —
+    # never repeated at any of the four call sites in this file.
+    # **kwargs = "collect everything the caller passed and forward it" —
+    # like a SWIFT intermediary that adds routing data and passes
+    # the original payment message through unchanged.
+    return call_llm(
+        **kwargs,
+        use_live_agents=config.USE_LIVE_AGENTS,
+        capture_fixtures=config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES,
+        fixture_dir=config.FIXTURE_DIR,
+    )
+
+def sm_save_price_fixtures(price_data):
+    # Passes the Stock Monitor fixture path and capture flag.
+    # HDB will define its own wrapper with its own path when ready.
+    return save_price_fixtures(
+        price_data=price_data,
+        fixture_path=config.PRICE_FIXTURE_PATH,
+        capture=config.CAPTURE_LIVE_DATA_FOR_FIXTURES,
+    )
+
+def sm_send_email_alert(subject, body):
+    # Passes the Stock Monitor .env path and project tag.
+    # HDB will define its own wrapper with its own path when ready.
+    return send_email_alert(
+        subject=subject,
+        body=body,
+        env_path=config.ENV_PATH,
+        project_tag="Stock Monitor",
+    )
+
 
 def check_stuck_runs():
     """
@@ -92,7 +147,7 @@ def check_stuck_runs():
                 severity="WARN",
                 file="stock_monitor.py",
                 function="check_stuck_runs()",
-                description=f"Stuck run detected — run_id '{run_id}' started at {started_at} had status='running' for more than {STUCK_RUN_THRESHOLD_MINUTES} minutes",
+                description=f"Stuck run detected — run_id '{run_id}' started at {started_at} had status='running' for more than {config.STUCK_RUN_THRESHOLD_MINUTES} minutes",
                 fix="Run has been marked failed. Check logs for that run_id to diagnose the crash."
             ))
 
@@ -389,7 +444,7 @@ def score_persona_call_outcomes():
     Why two horizons?
     +5 trading days (~1 week) tests short-term momentum calls.
     +20 trading days (~1 month) tests thesis-level directional calls.
-    Day 15 calibration uses both to find which horizon each persona
+    Day 17 eval harness uses both to find which horizon each persona
     is actually reliable at — the right horizon varies by persona type.
 
     Why price_at_signal instead of the run's price record?
@@ -640,7 +695,7 @@ def build_historical_context(ticker):
             "note": "Historical context unavailable in fixture mode. "
                     "Agents should reason from current price data only."
         }
-    
+
     context = {}
 
     try:
@@ -774,7 +829,7 @@ def determine_vix_regime(all_price_data):
     Extracts the current VIX level from the price data and
     classifies it into a regime tag. Returns the regime string.
     Used to tag every persona_calls row with the macro context
-    at the time of the call — essential for Day 15 accuracy analysis.
+    at the time of the call — essential for Day 17 accuracy analysis.
 
     Regime thresholds:
       low_vix:  below 15  — risk-on, complacency territory
@@ -955,7 +1010,9 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
     start = time.time()
     print(f"    [{agent_name.upper()}] reasoning on {ticker}...")
 
-    text, usage = call_llm(
+    # sm_call_llm injects USE_LIVE_AGENTS, CAPTURE_LIVE_AGENTS_FOR_FIXTURES,
+    # and FIXTURE_DIR from config — call site stays clean
+    text, usage = sm_call_llm(
         prompt=(
             f"Analyse this data package and return your JSON response.\n\n"
             f"{data_package}"
@@ -970,7 +1027,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
     )
     duration = round(time.time() - start, 1)
 
-    # Write LLM audit row — one row per call_llm() invocation
+    # Write LLM audit row — one row per sm_call_llm() invocation
     database.write_llm_call(
         run_id=run_id,
         call_type=f"stage1_{agent_name}",
@@ -1007,7 +1064,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
         print(f"    [{agent_name.upper()}] JSON parse failed: {error}")
         return None, usage.get("warnings", [])
 
-    # Write persona_calls row — the voting ledger for Day 15 tuning
+    # Write persona_calls row — the voting ledger for Day 17 eval harness
     # direction and confidence come from the parsed JSON output
     # Extract the current price for this ticker from the data package.
     # Stored as price_at_signal — immutable baseline for +5/+20 day scoring.
@@ -1043,7 +1100,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
           f"{parsed.get('direction', '?')} "
           f"(confidence {parsed.get('confidence', '?')}) "
           f"— {duration}s")
-    # Return parsed output AND any warnings from call_llm()
+    # Return parsed output AND any warnings from sm_call_llm()
     # Caller appends these to run_warnings for the end-of-run summary
     return parsed, usage.get("warnings", [])
 
@@ -1089,7 +1146,8 @@ def run_contrarian(stage1_outputs, data_package, ticker,
         f"DATA PACKAGE:\n{data_package}"
     )
 
-    text, usage = call_llm(
+    # sm_call_llm injects fixture config — call site stays clean
+    text, usage = sm_call_llm(
         prompt=contrarian_prompt,
         system=STOCK_CONTRARIAN_SYSTEM_PROMPT,
         model=config.STAGE_2_MODEL,
@@ -1137,8 +1195,6 @@ def run_contrarian(stage1_outputs, data_package, ticker,
     # Write persona_calls row for the Contrarian
     # Contrarian is scored like Stage 1 agents — its directional call
     # is tracked and outcome-scored at T+3 sessions
-    # Same price_at_signal logic as run_stage1_agent() —
-    # immutable baseline for +5/+20 trading-day outcome scoring.
     price_at_signal = None
     try:
         with database.get_connection() as conn:
@@ -1167,8 +1223,6 @@ def run_contrarian(stage1_outputs, data_package, ticker,
           f"{parsed.get('direction', '?')} "
           f"(confidence {parsed.get('confidence', '?')}) "
           f"— {duration}s")
-    # Return parsed output AND any warnings from call_llm()
-    # Caller appends these to run_warnings for the end-of-run summary
     return parsed, usage.get("warnings", [])
 
 # ─────────────────────────────────────────────────────────────
@@ -1205,7 +1259,8 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
         "per_ticker_analysis":  all_ticker_outputs,
     }
 
-    text, usage = call_llm(
+    # sm_call_llm injects fixture config — call site stays clean
+    text, usage = sm_call_llm(
         prompt=(
             f"Here is the complete portfolio ledger for today's session. "
             f"Render your final decisions for each ticker.\n\n"
@@ -1276,7 +1331,6 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
         ):
             trigger_text = ticker_decision.get(trigger_key)
             if trigger_text:
-                # Map trigger number to type for clarity
                 trigger_types = {
                     1: "price/technical",
                     2: "thesis_integrity",
@@ -1294,11 +1348,8 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
                           f"Decision: {decision}. "
                           f"Horizon: {ticker_decision.get('review_horizon', 'T+3')}",
                 )
+
     # ── Email alerts for high-conviction decisions ────────────
-    # Sends an alert when Meta-Agent produces REDUCE or EXIT
-    # with confidence >= 4, or when any kill trigger fires.
-    # Runs after all signals are written so the email body can
-    # reference the full decision set.
     # Only fires on live runs — fixture runs do not send emails
     # because the decisions are pre-captured, not real signals.
     if config.USE_LIVE_DATA:
@@ -1308,7 +1359,6 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
             decision   = ticker_decision.get("decision", "HOLD")
             confidence = ticker_decision.get("confidence", 0)
 
-            # High-conviction REDUCE or EXIT — warrants immediate attention
             if decision in ("REDUCE", "EXIT") and confidence >= 4:
                 alert_lines.append(
                     f"{ticker}: {decision} (confidence {confidence}/5)\n"
@@ -1326,11 +1376,10 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
                 + f"\n\n{'─' * 40}\n"
                 f"Review the full briefing in your terminal or run summary."
             )
-            send_email_alert(subject, body)
-    # ── End email alerts ──────────────────────────────────────
+            # sm_send_email_alert injects env_path and project_tag from config
+            sm_send_email_alert(subject, body)
+
     print(f"  [META-AGENT] Complete — {duration}s")
-    # Return parsed output AND any warnings from call_llm()
-    # Caller appends these to run_warnings for the end-of-run summary
     return parsed, usage.get("warnings", [])
 
 
@@ -1349,7 +1398,8 @@ def run_translator(meta_output, run_id):
     start = time.time()
     print("\n  [TRANSLATOR] writing plain English briefing...")
 
-    text, usage = call_llm(
+    # sm_call_llm injects fixture config — call site stays clean
+    text, usage = sm_call_llm(
         prompt=(
             f"Here are today's portfolio manager decisions. "
             f"Please explain them clearly.\n\n"
@@ -1393,8 +1443,6 @@ def run_translator(meta_output, run_id):
     )
 
     print(f"  [TRANSLATOR] Complete — {duration}s")
-    # Return text AND any warnings from call_llm()
-    # Caller appends these to run_warnings for the end-of-run summary
     return text, usage.get("warnings", [])
 
 
@@ -1414,7 +1462,6 @@ def display_results(price_data, meta_output, briefing):
     print(f"  STOCK MONITOR — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 60)
 
-    # ── Price data ──
     print("\n[ PRICE DATA ]\n")
     for row in price_data:
         direction = "+" if row["pct_change"] >= 0 else ""
@@ -1425,7 +1472,6 @@ def display_results(price_data, meta_output, briefing):
         print(f"  {row['ticker']:<12} ${row['price']:<10} "
               f"{direction}{row['pct_change']}%{vol_str}")
 
-    # ── Meta-Agent decisions ──
     if meta_output:
         print("\n[ PORTFOLIO DECISIONS ]\n")
         tickers_out = meta_output.get("tickers", {})
@@ -1450,7 +1496,6 @@ def display_results(price_data, meta_output, briefing):
             if premortem_scenario:
                 print(f"  Alternative thesis: {premortem_scenario}\n")
 
-    # ── Plain English briefing ──
     print("=" * 60)
     print("  PLAIN ENGLISH BRIEFING")
     print("=" * 60)
@@ -1471,34 +1516,28 @@ def main():
     Each step is a discrete function — one concern per function.
     Stats accumulate throughout and are written to run_log on finish.
     """
-    # ── Initialise ──
     database.initialise_db()
     run_id    = database.generate_run_id()
     data_mode = "live" if config.USE_LIVE_DATA else "fixture"
     database.start_run(run_id, data_mode=data_mode)
 
-    # Record wall-clock start time so we can compute total run duration
-    # in the summary. time.time() returns seconds since epoch — subtract
-    # at the end to get elapsed seconds for the full pipeline.
     run_start_time = time.time()
 
-    # Accumulates token counts, durations, and cost across all calls
     stats = {
-        "tickers_attempted":   0,
-        "tickers_succeeded":   0,
-        "tickers_failed":      0,
+        "tickers_attempted":       0,
+        "tickers_succeeded":       0,
+        "tickers_failed":          0,
         "analyst_input_tokens":    0,
         "analyst_output_tokens":   0,
         "translator_input_tokens": 0,
         "translator_output_tokens":0,
         "analyst_duration_secs":   0,
         "translator_duration_secs":0,
-        "fallback_used": 0,
-        "error_count":   0,
-        "total_cost_usd":0,
+        "fallback_used":           0,
+        "error_count":             0,
+        "total_cost_usd":          0,
     }
 
-    # Accumulates all LLM call costs for run summary
     all_call_costs = []
 
     # ── RUN WARNING SUMMARY ───────────────────────────────────────────────────
@@ -1506,7 +1545,7 @@ def main():
     # Machine-readable — import directly into Excel or SQLite for trend analysis.
     # To add a new warning source:
     #   1. Call format_warning() from shared/utils.py to build the string
-    #   2. Return it via usage["warnings"] from call_llm() callers
+    #   2. Return it via usage["warnings"] from sm_call_llm() callers
     #      OR append directly to run_warnings for stock_monitor.py functions
     # Never add free-form strings to run_warnings — always use format_warning()
     # ─────────────────────────────────────────────────────────────────────────
@@ -1518,41 +1557,20 @@ def main():
         print(f"  Mode: {data_mode.upper()}")
         print(f"{'='*60}\n")
 
-        # Score persona calls from T-3 sessions at session start
-        # Non-blocking — runs before kill triggers so scored data
-        # is available if any downstream function queries outcomes
         score_persona_call_outcomes()
-        
-        # Check for crashed runs from previous sessions before doing anything else
         stuck_count = check_stuck_runs()
 
-
-        # ── Kill trigger check ──
-        # Must run before any data fetch so active triggers are
-        # injected into data packages before agents start reasoning
         print("Checking kill triggers...")
         active_kill_triggers = check_kill_triggers()
-        # Check thesis staleness after kill triggers
-        # Non-blocking — flags stale entries in run summary but never stops the run
         stale_items = check_thesis_staleness()
-
-        # Correlation checks run after market history update so they
-        # use the freshest available data. In fixture mode market
-        # history is not updated but existing history is still valid
-        # for correlation computation.
         correlation_breaches = check_portfolio_correlations(run_id)
 
-        # ── Update market history (delta pull) ──
-        # Fetches new trading days since last stored date.
-        # Skipped in fixture mode — agents read existing market_history.
-        # This must run before build_historical_context() is called.
         print("\nUpdating market history...")
         update_market_history(
             tickers=list(config.TICKERS.keys()),
             use_live=config.USE_LIVE_DATA,
         )
 
-        # ── Fetch current prices ──
         print("\nFetching current prices...")
         price_data = get_current_prices(
             tickers=config.TICKERS,
@@ -1573,42 +1591,29 @@ def main():
 
         print(f"  Retrieved {stats['tickers_succeeded']} tickers.\n")
 
-        # ── Write prices to database ──
         database.write_prices(run_id, price_data)
 
-        # Auto-update price fixtures when running on live data.
-        # CAPTURE_LIVE_DATA_FOR_FIXTURES controls whether the file
-        # is actually overwritten — handled inside save_price_fixtures().
-        # Called unconditionally when USE_LIVE_DATA=True — the function
-        # respects the capture flag internally and does nothing if False.
+        # sm_save_price_fixtures injects fixture_path and capture flag from config
         if config.USE_LIVE_DATA:
-            save_price_fixtures(price_data)
+            sm_save_price_fixtures(price_data)
 
-        # ── Get VIX regime for tagging persona_calls ──
         vix_regime, vix_level = determine_vix_regime(price_data)
         print(f"  VIX regime: {vix_regime} (VIX: {vix_level})\n")
 
-        # ── Fetch intelligence context ──
         intelligence_context = get_intelligence_context(
             use_live=config.USE_LIVE_DATA
         )
 
-        # ── Stage 1 + Stage 2 per ticker ──
-        # all_ticker_outputs accumulates agent results across all tickers.
-        # Meta-Agent reads this in Stage 3.
         all_ticker_outputs = {}
 
         print("Running Stage 1 + Stage 2 agents...\n")
         for ticker, instrument_type in config.TICKERS.items():
 
-            # VIX is a regime classifier — agents reason about it but
-            # it does not get its own Stage 1 analysis round
             if ticker == "^VIX":
                 continue
 
             print(f"  {ticker}:")
 
-            # ── Build the data package for this ticker ──
             data_package = build_data_package(
                 ticker=ticker,
                 instrument_type=instrument_type,
@@ -1617,9 +1622,6 @@ def main():
                 intelligence_context=intelligence_context,
             )
 
-            # ── Stage 1: four isolated agents ──
-            # Each agent receives the same data package independently.
-            # No agent sees another's output at this stage.
             stage1_outputs = {}
 
             agents = [
@@ -1642,7 +1644,6 @@ def main():
                 stage1_outputs[agent_name] = output
                 run_warnings.extend(agent_warnings)
 
-            # ── Stage 2: Contrarian reads all four Stage 1 outputs ──
             contrarian_output, contrarian_warnings = run_contrarian(
                 stage1_outputs=stage1_outputs,
                 data_package=data_package,
@@ -1653,10 +1654,6 @@ def main():
             )
             run_warnings.extend(contrarian_warnings)
 
-            # Compress agent outputs for Meta-Agent — pass only the
-            # essential fields, not full JSON. This reduces Meta-Agent
-            # input from ~32k tokens to ~8k tokens while preserving
-            # all decision-relevant information.
             def compress(output, key_fields):
                 # Extracts only the fields the Meta-Agent needs
                 # Drops verbose fields like full rationale text
@@ -1692,9 +1689,8 @@ def main():
                 "active_kill_triggers": active_kill_triggers.get(ticker, []),
             }
 
-            print()  # spacing between tickers
+            print()
 
-        # ── Stage 3: Meta-Agent reads full portfolio ledger ──
         meta_output, meta_warnings = run_meta_agent(
             all_ticker_outputs=all_ticker_outputs,
             all_price_data=price_data,
@@ -1705,18 +1701,13 @@ def main():
         )
         run_warnings.extend(meta_warnings)
 
-        # ── Translator: plain English briefing ──
         briefing = ""
         if meta_output:
             briefing, translator_warnings = run_translator(meta_output, run_id)
             run_warnings.extend(translator_warnings)
 
-        # ── Display results ──
         display_results(price_data, meta_output, briefing)
 
-        # ── Compute total run cost from all llm_calls for this run ──
-        # Queries the database rather than summing from stats — this
-        # captures every call including any that bypassed stats tracking
         try:
             with database.get_connection() as conn:
                 cost_row = conn.execute(
@@ -1731,10 +1722,6 @@ def main():
         stats["total_cost_usd"] = total_cost
         balance = database.get_estimated_balance()
 
-        # ── Run summary ──
-        # Query llm_calls for full token breakdown — more accurate than
-        # accumulating in stats because it captures every call including
-        # retries. Groups by call_type prefix for readable summary.
         try:
             with database.get_connection() as conn:
                 call_rows = conn.execute(
@@ -1766,10 +1753,10 @@ def main():
         except Exception:
             call_rows = []
 
-        total_input_all  = sum(r["total_input"]  for r in call_rows)
-        total_output_all = sum(r["total_output"] for r in call_rows)
-        total_retries    = sum(r["retries"]      for r in call_rows)
-        total_truncations= sum(r["truncations"]  for r in call_rows)
+        total_input_all   = sum(r["total_input"]   for r in call_rows)
+        total_output_all  = sum(r["total_output"]  for r in call_rows)
+        total_retries     = sum(r["retries"]        for r in call_rows)
+        total_truncations = sum(r["truncations"]    for r in call_rows)
 
         print("\n── Run Summary ──────────────────────────────────")
         print(f"  Run ID       — {run_id}")
@@ -1779,10 +1766,8 @@ def main():
         print(f"  VIX regime   — {vix_regime}")
         print(f"  Tickers      — {stats['tickers_succeeded']} succeeded"
               f" / {stats['tickers_failed']} failed")
-        
-        # Compute total wall-clock duration from run start to summary print
+
         run_duration_secs = round(time.time() - run_start_time, 1)
-        
         print(f"  Duration     — {run_duration_secs}s")
         if stale_items:
             print(f"  Stale thesis — {len(stale_items)} item(s) flagged for review")
@@ -1820,11 +1805,6 @@ def main():
         if stats["fallback_used"]:
             print("  [WARN] Fallback model was used this run.")
 
-        # ── Consolidated warning summary ──────────────────────────────────
-        # Pipe-delimited: SEVERITY | file | function() | description | fix
-        # Machine-readable — copy into Excel or SQLite for trend analysis.
-        # See run_warnings definition above for how to add new sources.
-        # ─────────────────────────────────────────────────────────────────
         error_count   = sum(1 for w in run_warnings if w.startswith("ERROR"))
         warning_count = sum(1 for w in run_warnings if w.startswith("WARN"))
         print(f"\n── Warnings & Errors ──────────────────────────────────────")
@@ -1838,7 +1818,6 @@ def main():
         print(f"── {error_count} error(s), {warning_count} warning(s) ──"
               + "─" * 20)
         print("─" * 50)
-
         print(f"  Stuck runs cleared:  {stuck_count}")
 
         database.finish_run(run_id, status="complete", stats=stats)
@@ -1850,5 +1829,29 @@ def main():
         raise
 
 
+def run_pipeline():
+    """
+    Crash recovery wrapper around main().
+    Called by Windows Task Scheduler — catches unhandled exceptions,
+    logs them, and sends email alert on live runs.
+    main() retains its existing raise-on-fatal behaviour for
+    interactive debugging. The wrapper catches what main() does not.
+    """
+    try:
+        main()
+    except Exception as e:
+        print(f"\n[run_pipeline] FATAL: pipeline crashed — {e}")
+        if config.USE_LIVE_DATA:
+            sm_send_email_alert(
+                subject="Pipeline crashed",
+                body=(
+                    f"Stock Monitor crashed at "
+                    f"{datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+                    f"Error: {e}\n\n"
+                    f"Check terminal output or run logs for full traceback."
+                ),
+            )
+
+
 if __name__ == "__main__":
-    main()
+    run_pipeline()
