@@ -1,0 +1,220 @@
+{
+  "meta": {
+    "day": 15,
+    "date": "2026-06-12",
+    "session_type": "architecture fix + design",
+    "projects_touched": ["stock-monitor", "hdb-analyser", "shared"],
+    "status": "complete",
+    "next_day": 16
+  },
+
+  "architectural_rules_locked": [
+    {
+      "rule": "SHARED MODULE RULE",
+      "statement": "shared/utils.py must never import either project config.py",
+      "mechanism": "shared functions receive config-dependent values as parameters from the caller",
+      "pattern": "each project defines thin wrappers that inject its own config values once",
+      "violation_consequence": "sys.modules caching — first import config wins, subsequent imports return cached version regardless of sys.path order",
+      "enforcement": "every code review, no exceptions",
+      "origin": "Day 15 bug — hdb_analyser.py failed with ImportError on API_BASE_URL because shared/utils.py had imported stock-monitor/config.py first"
+    },
+    {
+      "rule": "SESSION CLOSE RULE",
+      "statement": "SESSION_LEDGER.md and DATA_DICTIONARY.md completed at end of every session without exception",
+      "enforcement": "cut scope before cutting the close — never defer",
+      "origin": "institutionalised Day 15"
+    }
+  ],
+
+  "files_changed": {
+    "shared/utils.py": {
+      "change_type": "architecture fix",
+      "removed": [
+        "_STOCK_MONITOR_DIR = Path(__file__).parent.parent / 'stock-monitor'",
+        "sys.path.insert(0, str(_STOCK_MONITOR_DIR))",
+        "import config"
+      ],
+      "added": "architectural rule comment block at module header",
+      "modified_functions": {
+        "call_llm": {
+          "new_parameters": [
+            {"name": "use_live_agents", "type": "bool", "default": true, "description": "True=real API calls, False=load from fixtures"},
+            {"name": "capture_fixtures", "type": "bool", "default": false, "description": "True=save live responses to disk as fixtures"},
+            {"name": "fixture_dir", "type": "Path or None", "default": null, "description": "caller passes project fixture directory — never constructed here"}
+          ],
+          "removed_references": ["config.USE_LIVE_AGENTS", "config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES"],
+          "fixture_dir_source": "built from fixture_dir parameter, not hardcoded stock-monitor path"
+        },
+        "save_price_fixtures": {
+          "new_parameters": [
+            {"name": "fixture_path", "type": "Path", "description": "full path to fixture JSON file — caller passes from their own config"},
+            {"name": "capture", "type": "bool", "description": "caller passes their own capture flag"}
+          ],
+          "removed": "hardcoded stock-monitor/fixtures path"
+        },
+        "send_email_alert": {
+          "new_parameters": [
+            {"name": "env_path", "type": "Path or None", "default": null, "description": "path to .env file — caller passes from their own project directory"},
+            {"name": "project_tag", "type": "str", "default": "Monitor", "description": "prepended to email subject for inbox filtering"}
+          ],
+          "removed": "hardcoded stock-monitor/.env path"
+        }
+      }
+    },
+
+    "stock-monitor/config.py": {
+      "change_type": "new constants",
+      "added_import": "from pathlib import Path",
+      "new_constants": {
+        "FIXTURE_DIR": "Path(__file__).parent / 'fixtures' / 'agents'",
+        "PRICE_FIXTURE_PATH": "Path(__file__).parent / 'fixtures' / 'normal_day.json'",
+        "ENV_PATH": "Path(__file__).parent / '.env'"
+      },
+      "location_in_file": "bottom of file, after STUCK_RUN_THRESHOLD_MINUTES"
+    },
+
+    "stock-monitor/stock_monitor.py": {
+      "change_type": "project wrappers added + call sites updated",
+      "new_wrappers": {
+        "sm_call_llm": {
+          "pattern": "**kwargs pass-through",
+          "injects": ["config.USE_LIVE_AGENTS", "config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES", "config.FIXTURE_DIR"],
+          "location": "after client = anthropic.Anthropic(...) initialisation"
+        },
+        "sm_save_price_fixtures": {
+          "signature": "sm_save_price_fixtures(price_data)",
+          "injects": ["config.PRICE_FIXTURE_PATH", "config.CAPTURE_LIVE_DATA_FOR_FIXTURES"]
+        },
+        "sm_send_email_alert": {
+          "signature": "sm_send_email_alert(subject, body)",
+          "injects": ["config.ENV_PATH", "project_tag='Stock Monitor'"]
+        }
+      },
+      "call_sites_updated": {
+        "call_llm_to_sm_call_llm": 4,
+        "locations": ["run_stage1_agent()", "run_contrarian()", "run_meta_agent()", "run_translator()"],
+        "save_price_fixtures_to_sm_save_price_fixtures": 1,
+        "location": "main()",
+        "send_email_alert_to_sm_send_email_alert": 2,
+        "locations": ["run_meta_agent()", "run_pipeline()"]
+      },
+      "bug_fixed": {
+        "function": "check_stuck_runs()",
+        "issue": "referenced STUCK_RUN_THRESHOLD_MINUTES without config. prefix",
+        "fix": "changed to config.STUCK_RUN_THRESHOLD_MINUTES"
+      }
+    },
+
+    "hdb-analyser/hdb_analyser.py": {
+      "change_type": "bug fix",
+      "bug_fixed": {
+        "function": "run_translator_section()",
+        "issue": "except block returned single string value — caller expected (str, dict) tuple causing ValueError: too many values to unpack",
+        "fix": "except block now returns (f'Could not generate this section: {e}', {'input': 0, 'output': 0})"
+      }
+    },
+
+    "hdb-analyser/.env": {
+      "change_type": "operational fix",
+      "issue": "stale API key causing 401 authentication errors on all Claude calls",
+      "fix": "replaced with correct key matching stock-monitor/.env"
+    },
+
+    "shared/.gitignore": {
+      "change_type": "new file",
+      "contents": ["__pycache__/", "*.pyc", "*.pyo"],
+      "reason": "shared/ was previously a nested git repo — .gitignore was missing, __pycache__ files were committed"
+    }
+  },
+
+  "git_fixes": {
+    "issue": "hdb-analyser and shared were stored as submodule pointers (160000 commit) not tracked folders (040000 tree)",
+    "cause": "both had nested .git folders from prior separate repo initialisation",
+    "fix_sequence": [
+      "Remove-Item -Recurse -Force hdb-analyser/.git",
+      "git rm --cached hdb-analyser",
+      "git rm --cached shared",
+      "git add .",
+      "git commit -m 'convert hdb-analyser and shared from submodules to tracked folders'",
+      "git push origin main"
+    ],
+    "verified": "git ls-tree HEAD shows 040000 tree for all three project folders"
+  },
+
+  "pipeline_status": {
+    "stock_monitor": {
+      "status": "clean",
+      "mode": "USE_LIVE_DATA=False, USE_LIVE_AGENTS=False, DEV_MODE=True",
+      "last_run": "2026-06-12_20:41:30",
+      "result": "complete — 0 errors, 0 warnings, all 37 fixtures loaded"
+    },
+    "hdb_analyser": {
+      "status": "clean",
+      "last_run": "2026-06-12 evening",
+      "result": "complete — 7 analyst sections, 8 translator sections, full briefing generated"
+    }
+  },
+
+  "deferred_to_day_16": [
+    {
+      "item": "hdb.db schema design",
+      "priority": "MUST — design before any code",
+      "spec": "OQ-005 in OPEN_QUESTIONS.docx has full column list, types, derived fields, amenities table"
+    },
+    {
+      "item": "nationwide paginated fetch from data.gov.sg",
+      "detail": "~170,000 rows, 500 per API call, loop until exhausted, delta-pull with natural key de-dup"
+    },
+    {
+      "item": "OneMap API geocoding enrichment",
+      "detail": "lat/lng on every transaction row at insert time — mandatory for proximity scoring"
+    },
+    {
+      "item": "delta-pull ingestion",
+      "detail": "natural key: month + block + street + flat_type + storey_range + resale_price. INSERT OR IGNORE. Idempotent."
+    },
+    {
+      "item": "recency-weighted aggregate SQL view",
+      "detail": "weight = 1 / months_since_transaction. Per town + flat_type. National baseline for value_assessment."
+    },
+    {
+      "item": "Stage 2 composite scoring function",
+      "detail": "6 dimensions: value(25%), lease(25%), proximity(30%), price_delta(10%), recency(5%), floor(5%). Weights in HDB_RANKING_WEIGHTS config dict."
+    },
+    {
+      "item": "Workflow 2 — single flat deep analysis",
+      "detail": "buyer identifies block + flat type + storey range. Tool retrieves matching transactions, runs analyst against new schema, returns full briefing."
+    }
+  ],
+
+  "open_questions": {
+    "OQ-005": {
+      "status": "architecture locked Day 15",
+      "build_order": ["Workflow 2 first", "then Workflow 1", "then Workflow 3"],
+      "ranking_funnel": ["Stage 1 SQL hard filter", "Stage 2 Python composite score", "Stage 3 diversity filter", "Stage 4 one Claude call on 15-20 rows"],
+      "config_constants_to_add_day_16": [
+        "HDB_RANKING_WEIGHTS",
+        "HDB_AMENITY_PRIORITIES",
+        "HDB_PRICE_DELTA_MIN_COMPARABLES",
+        "HDB_PRICE_DELTA_WINDOW_MONTHS",
+        "HDB_SHORTLIST_SIZE",
+        "HDB_CLAUDE_INPUT_SIZE"
+      ]
+    }
+  },
+
+  "session_close_documents_updated": [
+    "SESSION_LEDGER.md — Day 15 row complete",
+    "DATA_DICTIONARY.md — Day 14 carried constants included, Day 15 delta complete",
+    "OPEN_QUESTIONS.docx — OQ-005 fully expanded with ranking architecture, proximity design, price delta, wargame failure modes",
+    "Day15_Summary.docx — uploaded to Project Knowledge"
+  ],
+
+  "day_16_session_opener": {
+    "step_1": "Read all Project Knowledge documents",
+    "step_2": "Confirm Day 16 scope against this spec and master plan",
+    "step_3": "Design hdb.db schema in full — confirm with Mack before writing any code",
+    "step_4": "Build in sequence — schema first, fetch second, scoring third, Workflow 2 last",
+    "non_negotiable": "session close — SESSION_LEDGER.md and DATA_DICTIONARY.md before any commit"
+  }
+}
