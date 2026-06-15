@@ -32,12 +32,21 @@ if confirm != "YES":
     print("  Cancelled.")
     sys.exit(0)
 
-# ── Step 1: Delete existing database ─────────────────────────
+# ── Step 1: Backup then delete existing database ─────────────
+import shutil
+from datetime import datetime
+
 if os.path.exists(config.DB_PATH):
+    backup_dir = r"C:\AI_Projects\backups\stock-monitor"
+    os.makedirs(backup_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(backup_dir, f"prices_{timestamp}.db")
+    shutil.copy2(config.DB_PATH, backup_path)
+    print(f"\n  [1/3] Backed up to {backup_path}")
     os.remove(config.DB_PATH)
-    print(f"\n  [1/3] Deleted {config.DB_PATH}")
+    print(f"        Deleted {config.DB_PATH}")
 else:
-    print(f"\n  [1/3] No existing database found — skipping delete")
+    print(f"\n  [1/3] No existing database found — skipping backup and delete")
 
 # ── Step 2: Reinitialise schema ───────────────────────────────
 database.initialise_db()
