@@ -1,49 +1,49 @@
 # WHAT THE SYSTEM DECIDED TODAY
 
-- NVDA: HOLD — price is weak on thin volume, but no confirmed demand breakdown yet; waiting for volume conviction or Blackwell allocation data before acting.
-- AVGO: REDUCE — custom silicon partnerships with hyperscalers are optional for them, not binding contracts; the Bull's revenue inflection is built on optionality AVGO doesn't control, so trim exposure before earnings.
-- LITE: HOLD — rallying on thin volume while NVDA weakens is a warning sign, not a buy signal; the optical interconnect thesis depends entirely on NVDA staying strong.
-- TSM: HOLD — capacity constraints give pricing power, but if capacity is already full, TSM can't grow revenue *and* raise prices simultaneously; waiting for utilization data to confirm which one is true.
-- QQQ: HOLD — all the good news (AI adoption, hyperscaler spending, software monetization) is already priced in; next catalyst is likely negative.
-- SMH: HOLD — outperforming NVDA on thin volume is a red flag, not a green light; the ETF is 50% concentrated in NVDA + TSM, so it's not diversified in a stress scenario.
-- G3B.SI: HOLD — rallying on critically thin volume while semiconductors advance on conviction; Singapore banking may no longer be providing diversification if it's now correlated to global tech risk.
+- **NVDA: HOLD** — Thesis is sound but the visibility window is closing in real time due to live energy policy events (Illinois subsidy pause, Georgia/South Carolina uncertainty, federal moratorium proposals) that could force hyperscalers to repriorize their chip spending within weeks.
+- **AVGO: HOLD** — The core question remains unanswered: are custom chips a *growth* signal or a *cost-cutting* signal? If hyperscalers are building custom silicon to *reduce* their total chip spending (not expand it), AVGO loses switching volume and the thesis collapses.
+- **LITE: REDUCE** — The optical interconnect bet is priced on adoption that hasn't yet generated actual binding orders; the recent 3-session rally on thin volume looks like exhaustion, not conviction; trim position size to manage a 5–10% technical breakdown risk.
+- **TSM: HOLD** — The demand thesis is intact but regulatory unpredictability (export controls, customer verification requirements) is now the binding constraint; visibility on whether TSMC's capacity remains accessible to US hyperscalers is opaque.
+- **QQQ: HOLD** — This is a leveraged bet on the same hyperscaler CapEx cycle, not a diversifier; when hyperscaler CapEx guidance disappoints, QQQ gets hit harder than hardware because the entire software/platform growth story collapses.
+- **SMH: HOLD** — A single day of outperformance (+1.09% on thin volume) cannot signal healthy sector breadth; this may be rotation *out* of concentrated positions (NVDA, TSM) into lower-conviction holdings as institutions hedge their bets.
+- **G3B.SI: HOLD** — The diversification thesis has never been tested in a real crisis (VIX >25); today's +1.11% gain on 0.66x volume is noise, not proof the hedge works when it matters.
 
 ---
 
 # WHY THE FEAR GAUGE MATTERS TODAY
 
-- VIX is in "normal" regime (low anxiety), which means the market is pricing for smooth sailing; this is exactly when hidden risks are most dangerous because no one is hedging.
-- Low VIX + thin-volume rallies in LITE, SMH, G3B.SI = institutional indifference, not institutional conviction; the moves lack the volume that would signal real money moving.
-- Think of it like a weather forecast showing clear skies while the barometer is dropping silently — the danger is invisible until the storm arrives suddenly.
+- **VIX is in "normal" regime** — Markets are calm, which means all agents are extrapolating from a stable-world assumption; this is precisely when hidden risks (regulatory fragmentation, CapEx deceleration) are most likely to blindside the portfolio.
+- **Calm markets hide fragmentation risk** — When volatility is low, small divergence signals (LITE +1.92% vs NVDA -0.38%) look like healthy breadth; in reality, they may be early-stage distribution as smart money rotates out of concentrated bets into lower-conviction holdings.
+- **Analogy: calm water before the dam breaks** — A still pond tells you nothing about whether the water level is rising or falling; you only know when the flow changes direction, and by then it's too late to move.
 
 ---
 
 # THE BIGGEST DISAGREEMENT
 
-- Bull vs. Bear both assume hyperscaler CapEx health can be read from supply chain price signals (TSM utilization, LITE strength); Contrarian correctly identifies this as circular logic — they're both reading the same tea leaves and missing the real question.
-- Meta-Agent resolved it by prioritizing Pragmatist's low-volume signal as the most reliable data point; when volume is thin, price moves are noise, not conviction.
-- Contrarian's blind spot finding: **no agent has verified actual CoWoS lead times, new order intake velocity, or whether hyperscalers have already made their Blackwell decisions 8-12 weeks ago** — the supply chain strength could be fulfilling old orders while new demand is already shifting to custom silicon alternatives.
+- **Bull vs Contrarian on hyperscaler CapEx** — Bull assumes CapEx commitments are locked in and exogenous (hyperscalers *must* spend to stay competitive); Contrarian identifies that CapEx is endogenous (hyperscalers will repriorize spending based on efficiency gains and regulatory constraints).
+- **Meta-Agent resolved it by weighting Contrarian heavily** — The energy policy events (Illinois, Georgia, South Carolina, federal moratorium proposals) and the Anthropic suspension (13 Jun) are *live catalysts*, not hypothetical tails; regulatory unpredictability is now first-order risk, not tail risk.
+- **Contrarian's blind spot finding: all agents assume adoption is happening but none have verified actual order flow** — LITE, AVGO, and TSM are all priced on the assumption that hyperscalers are ordering and shipping today; no agent has confirmed that binding orders actually exist at scale.
 
 ---
 
 # KILL TRIGGERS — YOUR SAFETY NET
 
-- **Most critical across portfolio:** NVDA closes below $200.42 on elevated volume (>1.2x average) for 2 consecutive sessions — this breaks the demand anchor for the entire semiconductor chain and signals hyperscaler capex deceleration is real, not temporary.
-- **Second most critical:** Hyperscaler earnings calls (Microsoft, Google, Meta) show flat or declining AI infrastructure CapEx guidance, or TSMC signals CoWoS utilization falling or wafer start cuts — this is the moment the market reprices the entire AI cycle from "acceleration" to "deceleration."
-- These conditions matter because they represent the shift from backward-looking confirmations (Blackwell backlog fulfillment) to forward-looking reality (what hyperscalers are ordering for 2027, which may not be NVDA-centric GPUs anymore).
+- **Most critical: hyperscaler CapEx guidance misses in next earnings cycle (4 weeks)** — If Microsoft, Google, Meta, or Amazon signal CapEx growth <15% YoY or shift language from "growth CapEx" to "efficiency CapEx," the entire causal chain (NVDA → TSM → LITE → AVGO → SMH → QQQ) breaks simultaneously and triggers 15–25% portfolio drawdown.
+- **Second most critical: LITE breaks below $900.74 (50-day MA) on volume >1.0x average** — This is a technical exhaustion signal that would trigger a cascade of stop-loss selling in a small-liquidity position and force exit.
+- **Third most critical: US government announces binding export control or customer verification requirement on TSMC CoWoS capacity** — This would fragment TSMC's customer base and force hyperscalers to repriorize CapEx within 8–12 weeks, invalidating the entire portfolio thesis.
 
 ---
 
 # CONCENTRATION RISKS
 
-- **Primary risk:** Portfolio is 50% concentrated in NVDA + TSM through direct holdings and SMH; these two stocks move together in stress scenarios, so "diversification" via SMH is an illusion.
-- **Linked tickers:** NVDA → TSM → AVGO → LITE form a single causal chain; if NVDA demand weakens, it cascades through all four within 30 days as hyperscalers adjust orders.
-- **Simultaneous drawdown trigger:** Taiwan Strait escalation, TSMC wafer start cuts, or hyperscaler earnings showing capex deceleration would trigger synchronized 10-15% declines across NVDA, TSM, AVGO, LITE, and SMH simultaneously; QQQ and G3B.SI provide no cushioning because they're correlated to the same macro shock.
+- **Primary concentration: NVDA and TSM are the demand anchor and production floor for the entire causal chain** — If hyperscaler CapEx decelerates, both positions fall together and there is no diversification benefit from LITE, AVGO, SMH, or QQQ because they are all downstream of the same demand shock.
+- **Secondary concentration: LITE and AVGO are frontier bets priced on adoption that has not yet generated binding orders** — These positions have no independent demand signal; they are pure leveraged bets on the NVDA/TSM thesis, which means they amplify drawdown risk by 30–40% in a correction.
+- **Simultaneous drawdown trigger: hyperscaler CapEx repriorization from "growth" to "efficiency"** — If this happens, NVDA, TSM, LITE, and AVGO all fall 15–30% within 4–8 weeks; SMH and QQQ provide no cushion because they are correlated to the same demand shock; only G3B.SI might provide diversification, but the thesis is unproven in a crisis.
 
 ---
 
 # ONE THING TO WATCH
 
-- **Single most important signal:** Hyperscaler earnings calls in the next 7-10 days (Microsoft, Google, Meta) — specifically their AI infrastructure CapEx guidance for H2 2026 and 2027, and any commentary about custom silicon adoption rates or in-house chip development progress.
-- **Where to look:** Management commentary sections of earnings transcripts, not just the numbers; listen for language about "optimizing" interconnect, "vertical integration," or "proprietary silicon roadmaps" — these are code for "we're reducing NVDA/AVGO dependency."
-- **Weekly premortem running:** If this thesis is wrong in 12 months, the most likely killer is that hyperscalers made their Blackwell allocation decisions 8-12 weeks ago (already locked in), and the supply chain strength everyone is celebrating is fulfilling old orders while new demand is already pivoting to custom silicon alternatives — meaning the market is pricing for acceleration into a cycle that's already entering deceleration, and the entire semiconductor chain reprices downward once hyperscaler earnings reveal the pivot.
+- **The single most important signal: hyperscaler CapEx intensity (CapEx as % of revenue) in next earnings cycle** — This number tells you whether CapEx growth is accelerating (thesis intact) or decelerating (thesis broken); if intensity is falling YoY, custom silicon adoption and optical interconnects are cost-optimization signals, not growth signals.
+- **Where to look: Microsoft, Google, Meta, Amazon earnings calls (expected late July for Q2 2026 results)** — Listen for management language shift from "growth CapEx" to "efficiency CapEx"; watch for CapEx guidance growth rates <15% YoY; note any delays or cancellations in custom chip or optical interconnect programs.
+- **Weekly premortem running: if this thesis is wrong in 12 months, what killed it?** — The portfolio is pricing a hyperscaler AI CapEx acceleration that may have already peaked; if hyperscaler CapEx is rolling over from 40% YoY growth into 15–20% YoY growth, the portfolio experiences a 15–25% drawdown over 8–12 weeks as institutions rotate out of concentrated positions (NVDA, TSM) into lower-conviction holdings (LITE, secondary semiconductors), and LITE/AVGO experience 30–40% declines due to visibility collapse; regulatory fragmentation (energy policy, export controls, MAS tightening) is the mechanism that triggers this repriorization, not a tail risk.

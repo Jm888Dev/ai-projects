@@ -340,6 +340,30 @@ CREATE TABLE IF NOT EXISTS slm_benchmarks (
 )
 """
 
+# Intelligence feed headlines - Stage 1 ingestion only
+# One row per headline per source. No model ever reads this in Stage 1.
+# Feed Stage 2 (Day 45) is gated on Day 42 red-team completion.
+# url UNIQUE constraint + INSERT OR IGNORE = automatic deduplication
+# across fetch cycles and across sources that republish the same story.
+# domain values: ai, quantum, geopolitics, current_affairs, social, tech
+# relevance_score: keyword match count against FEED_KEYWORDS in config
+# injected: 1 if this headline was included in a data package this run
+CREATE_FEEDS_TABLE = """
+CREATE TABLE IF NOT EXISTS feeds (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    fetched_at      TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    domain          TEXT NOT NULL,
+    title           TEXT NOT NULL,
+    url             TEXT NOT NULL UNIQUE,
+    published       TEXT,
+    summary         TEXT,
+    relevance_score INTEGER DEFAULT 0,
+    tickers_matched TEXT,
+    injected        INTEGER DEFAULT 0
+)
+"""
+
 # ─────────────────────────────────────────────────────────────
 # CONNECTION
 # ─────────────────────────────────────────────────────────────
@@ -395,6 +419,9 @@ def initialise_db():
 
         # SLM benchmarking
         cursor.execute(CREATE_SLM_BENCHMARKS_TABLE)
+
+        # Intelligence feeds - Stage 1 storage
+        cursor.execute(CREATE_FEEDS_TABLE)
 
         # Seed known models
         # INSERT OR IGNORE - safe to re-run, never overwrites existing rows

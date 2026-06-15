@@ -30,13 +30,13 @@ from pathlib import Path  # builds fixture and env paths for shared/utils.py wra
 # from fixtures/normal_day.json.
 # False = fixture prices — zero cost, instant, no network needed
 # True  = live yfinance fetch — real prices, real session
-USE_LIVE_DATA = True
+USE_LIVE_DATA = False
 
 # USE_LIVE_AGENTS controls whether agents call the Claude API
 # or load pre-captured outputs from fixtures/agents/.
 # False = fixture agents — zero API cost, instant, deterministic
 # True  = live Claude API calls — real reasoning, real cost
-USE_LIVE_AGENTS = True
+USE_LIVE_AGENTS = False
 
 # CAPTURE_LIVE_DATA_FOR_FIXTURES controls whether a live price
 # fetch overwrites fixtures/normal_day.json.
@@ -684,3 +684,65 @@ MODEL_PRICING.update({
 # in the run summary comparison table.
 SHADOW_COST_HAIKU_MODEL  = "claude-haiku-4-5-20251001"
 SHADOW_COST_SONNET_MODEL = "claude-sonnet-4-6"
+
+# ─────────────────────────────────────────────────────────────
+# INTELLIGENCE FEEDS — STAGE 1
+# Storage only. No model reads feed content in Stage 1.
+# Feed Stage 2 (agent consumption) gated on Day 42 red-team.
+# ─────────────────────────────────────────────────────────────
+
+FEED_SOURCES = [
+    # AI
+    {"domain": "ai", "name": "VentureBeat AI",          "url": "https://venturebeat.com/category/ai/feed/"},
+    {"domain": "ai", "name": "arXiv cs.AI",             "url": "https://rss.arxiv.org/rss/cs.AI"},
+    {"domain": "ai", "name": "Import AI",               "url": "https://importai.substack.com/feed"},
+    {"domain": "ai", "name": "MIT Technology Review AI","url": "https://www.technologyreview.com/feed/"},
+    {"domain": "ai", "name": "Google DeepMind Blog",    "url": "https://deepmind.google/blog/rss.xml"},
+    # Quantum
+    {"domain": "quantum", "name": "Quanta Quantum",         "url": "https://www.quantamagazine.org/tag/quantum-computing/feed/"},
+    {"domain": "quantum", "name": "Quanta Magazine",         "url": "https://www.quantamagazine.org/feed/"},
+    {"domain": "quantum", "name": "arXiv quant-ph",          "url": "https://rss.arxiv.org/rss/quant-ph"},
+    {"domain": "quantum", "name": "IEEE Spectrum",            "url": "https://spectrum.ieee.org/feeds/feed.rss"},
+    {"domain": "quantum", "name": "New Scientist Quantum",   "url": "https://www.newscientist.com/subject/physics/feed/"},
+    # Geopolitics
+    {"domain": "geopolitics", "name": "The Diplomat",              "url": "https://thediplomat.com/feed/"},
+    {"domain": "geopolitics", "name": "Foreign Policy",            "url": "https://foreignpolicy.com/feed/"},
+    {"domain": "geopolitics", "name": "Politico National Security", "url": "https://rss.politico.com/defense.xml"},
+    # Current Affairs
+    {"domain": "current_affairs", "name": "Channel NewsAsia",       "url": "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml"},
+    {"domain": "current_affairs", "name": "Japan Times",            "url": "https://www.japantimes.co.jp/feed/"},
+    {"domain": "current_affairs", "name": "Guardian",               "url": "https://www.theguardian.com/world/rss"},
+    {"domain": "current_affairs", "name": "Al Jazeera",             "url": "https://www.aljazeera.com/xml/rss/all.xml"},
+    {"domain": "current_affairs", "name": "South China Morning Post","url": "https://www.scmp.com/rss/91/feed"},
+    {"domain": "current_affairs", "name": "Politico Technology",    "url": "https://rss.politico.com/technology.xml"},
+    {"domain": "current_affairs", "name": "Federal Reserve",        "url": "https://www.federalreserve.gov/feeds/press_all.xml"},
+    # Tech
+    {"domain": "tech", "name": "Hacker News", "url": "https://news.ycombinator.com/rss"},
+    {"domain": "tech", "name": "a16z Future", "url": "https://future.a16z.com/feed"},
+]
+
+# Injection controls — govern what makes it into the data package
+FEED_MAX_HEADLINES_PER_DOMAIN = 5   # top N per domain by relevance score
+FEED_RELEVANCE_THRESHOLD      = 1   # minimum keyword matches to pass filter
+FEED_MAX_TOTAL_HEADLINES      = 30  # hard cap across all domains combined
+
+# Keywords per ticker for relevance scoring
+# Drawn from TICKER_THESIS — what words signal this ticker is relevant
+FEED_KEYWORDS = {
+    "NVDA": ["nvidia", "gpu", "cuda", "data center", "blackwell", "hopper",
+             "jensen huang", "accelerated computing", "ai chip"],
+    "AVGO": ["broadcom", "avgo", "custom chip", "asic", "hyperscaler",
+             "networking", "vmware", "hock tan"],
+    "LITE": ["lumentum", "lite", "photonics", "laser", "optical",
+             "copper to light", "silicon photonics", "transceiver"],
+    "TSM":  ["tsmc", "taiwan semiconductor", "cowos", "packaging",
+             "foundry", "2nm", "3nm", "fab", "taiwan strait"],
+    "QQQ":  ["nasdaq", "qqq", "tech stocks", "rate", "federal reserve",
+             "treasury yield", "growth stocks", "tech selloff"],
+    "SMH":  ["semiconductor", "smh", "chip", "sox index", "wafer",
+             "equipment", "asml", "applied materials"],
+    "G3B.SI": ["sti", "straits times index", "singapore", "dbs", "ocbc",
+               "uob", "sgx", "singapore dollar", "mas"],
+    "^VIX": ["vix", "volatility", "fear index", "market fear",
+             "risk off", "sell off", "crash", "correction"],
+}

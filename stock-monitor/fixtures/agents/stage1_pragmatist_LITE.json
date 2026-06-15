@@ -4,14 +4,15 @@
   "ticker": "LITE",
   "direction": "HOLD",
   "confidence": 2,
-  "statistical_anchor": "LITE +1.92% on 0.71x average volume represents noise-level conviction in a vacuum of historical context. Upstream chain shows mixed signals: NVDA flat-to-down (-0.38%), TSM positive (+0.46%), AVGO down (-0.85%). Without moving averages, range position, or streak data, the statistical probability baseline cannot be anchored to anything other than intra-day noise.",
-  "volume_assessment": "Volume is 29% below 30-day average (0.71x) despite a +1.92% move. This is thin-tape conviction. The move is not backed by elevated volume — it reads as noise or algorithmic rebalancing rather than institutional accumulation. Durability of this move is low.",
-  "trend_assessment": "Insufficient session history for statistical confidence — interpret with caution. No moving averages (MA50, MA200), no streak data, no position-in-range metric provided. Cannot assess whether price is building momentum or exhausting. The +1.92% move today is isolated without context.",
-  "regime_context": "Macro regime is stable: 10Y UST at 4.2%, VIX at 17.68 (normal regime, -9.10% today), no geopolitical escalation, no new export controls. This environment typically supports semiconductor valuations, but provides no directional signal for LITE specifically. The thesis dependency on NVDA demand and TSM production is intact but not activated — NVDA is flat-to-down today, which is a micro-signal of caution for a downstream bet.",
+  "statistical_anchor": "LITE is +1.92% on 0.71x average volume in a 3-session up streak, positioned at 0.48 in its 10-day range, 10.45% below the 10-day high of $1029.15, and above its 50-day MA of $900.74. However, the upstream demand anchor (NVDA) is -0.38% on low volume, and the thesis depends entirely on NVDA cluster demand and TSM production health — both showing neutral-to-weak signals today.",
+  "volume_assessment": "Volume is 0.71x the 30-day average on a +1.92% move — this is noise, not conviction. The price move lacks institutional backing. A genuine photonics demand surge would show elevated volume; instead, LITE is advancing on thin tape while NVDA (the mandatory upstream trigger) retreats on low volume. This is a momentum echo, not a thesis activation.",
+  "trend_assessment": "LITE is in a 3-session up streak with 8.0% 3-day return, above its 50-day MA, and positioned at 0.48 in its recent range (neutral, not at extremes). However, the 10-day high of $1029.15 was reached recently; current price at $921.56 is 10.45% below that peak, suggesting the momentum has already exhausted its near-term run. The streak is shallow and unsupported by volume — classic exhaustion setup.",
+  "regime_context": "Fed is data-dependent and paused; 10Y UST at 4.2% is stable; VIX at 17.68 is normal. This is a benign macro regime that does not compress or expand photonics multiples — it is neutral. The real regime question is whether NVDA cluster demand remains healthy. Today's -0.38% NVDA move on low volume, combined with no new hyperscaler CapEx guidance or architecture announcements this week, suggests the demand anchor is dormant. Photonics adoption is a lagging indicator — it only activates after NVDA demand is proven sustained.",
   "watch_items": [
-    "NVDA closes below $204 or posts two consecutive down sessions — thesis integrity threshold for downstream photonics bet",
-    "LITE volume spike above 1.2x 30-day average on next move — would signal institutional conviction vs. today's noise",
-    "LITE price breaks below $900 or above $940 — establish actual range context and trend direction"
+    "NVDA closes below $204.81 (today's low) on elevated volume — signals demand anchor weakness and thesis-integrity threat for LITE within 2-3 sessions",
+    "LITE closes below $900.74 (50-day MA) — breaks the primary technical support and suggests the 3-session streak is exhausted; would warrant REDUCE",
+    "TSM production guidance or NVDA cluster architecture announcement — the only catalyst that would validate the thesis and justify accumulation; absence of such signals for another week suggests LITE is trading on momentum, not fundamentals",
+    "LITE volume on next move — if LITE rallies again, volume must exceed 1.2x average to signal institutional conviction; if it stays below 0.9x, the move is noise"
   ]
 }
 ```

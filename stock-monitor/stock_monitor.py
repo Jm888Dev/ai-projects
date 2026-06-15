@@ -43,6 +43,7 @@ from prompts.analyst_persona import (
 )
 import config
 import database
+import feeds
 
 load_dotenv()
 
@@ -1059,7 +1060,12 @@ Sentiment:
         trigger_block = "ACTIVE KILL TRIGGERS: None currently active."
 
     # ── Assemble all layers into the final prompt ──
-    return "\n\n".join([
+    # Intelligence feed headlines — Stage 1 injection
+    # Relevant headlines scored and filtered by feeds.py
+    # No model call here — plain text only
+    feed_context = feeds.build_feed_injection(ticker)
+
+    layers = [
         price_block,
         thesis_block,
         chain_block,
@@ -1067,7 +1073,11 @@ Sentiment:
         hist_block,
         intel_block,
         trigger_block,
-    ])
+    ]
+    if feed_context:
+        layers.append(feed_context)
+
+    return "\n\n".join(layers)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1692,6 +1702,13 @@ def main():
         vix_regime, vix_level = determine_vix_regime(price_data)
         print(f"  VIX regime: {vix_regime} (VIX: {vix_level})\n")
 
+        # Fetch and store intelligence feed headlines (Stage 1 — storage only)
+        # No model reads feed content here. Injection happens in build_data_package().
+        if config.USE_LIVE_DATA:
+            feed_summary = feeds.fetch_and_store_feeds()
+            print(f"[FEEDS] {feed_summary['sources_ok']}/{feed_summary['sources_attempted']} "
+                  f"sources OK — {feed_summary['headlines_new']} new headlines stored")
+
         intelligence_context = get_intelligence_context(
             use_live=config.USE_LIVE_DATA
         )
@@ -1861,10 +1878,14 @@ def main():
 
         run_duration_secs = round(time.time() - run_start_time, 1)
         print(f"  Duration     — {run_duration_secs}s")
-        if stale_items:
-            print(f"  Stale thesis — {len(stale_items)} item(s) flagged for review")
-        if correlation_breaches:
-            print(f"  Correlations — {len(correlation_breaches)} threshold breach(es) — see signals table")
+        if config.USE_LIVE_DATA and 'feed_summary' in locals():
+            feed_ok      = feed_summary['sources_ok']
+            feed_total   = feed_summary['sources_attempted']
+            feed_failed  = feed_summary['sources_failed']
+            feed_new     = feed_summary['headlines_new']
+            print(f"  Feeds        — {feed_ok}/{feed_total} sources OK"
+                  f", {feed_failed} failed"
+                  f", {feed_new} new headlines stored")
         print()
         print(f"  {'Call type':<28} {'Model':<10} {'In':>7} {'Out':>7} {'Cost':>8} {'Calls':>5}")
         print(f"  {'─'*28} {'─'*10} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
@@ -1886,9 +1907,18 @@ def main():
         )
         print()
         if total_retries > 0:
-            print(f"  [TRUNCATION] {total_retries} retries, "
+            # Show which call types retried — not just the count
+            retried_calls = [
+                r for r in call_rows if r["retries"] > 0
+            ]
+            retry_detail = ", ".join(
+                f"{r['call_type']} ({r['retries']}x)"
+                for r in retried_calls
+            )
+            print(f"  [TRUNCATION] {total_retries} retries "
+                  f"({retry_detail}), "
                   f"{total_truncations} still truncated after retry.")
-            print(f"  Consider raising token budgets for truncating agents.")
+            print(f"  Consider raising token budgets for: {retry_detail}")
         if balance:
             print(f"  Est. balance remaining — ${balance['estimated_remaining']:.2f}")
             print(f"  Total spent to date    — ${balance['total_spent']:.4f}")

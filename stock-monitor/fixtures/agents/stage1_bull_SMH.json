@@ -4,13 +4,13 @@
   "ticker": "SMH",
   "direction": "ACCUMULATE",
   "confidence": 4,
-  "primary_argument": "SMH is outperforming its largest component NVDA (+1.09% vs -0.38%) while the entire semiconductor chain holds firm, signaling broad hardware cycle health and positioning the ETF to capture full-stack AI infrastructure demand without single-stock concentration risk.",
-  "supporting_evidence": "SMH +1.09% while NVDA -0.38% and TSM +0.46% — the divergence proves the semiconductor sector is intact and SMH's diversified exposure is capturing strength NVDA's weakness masks. SMH trades 2.81% below its 10-day high of $637.90 and sits at 0.74 position in recent range, indicating room to run toward resistance. Volume at 0.9x 30-day average is normal, not capitulation, consistent with steady accumulation rather than panic selling.",
-  "key_assumption": "The AI infrastructure capex cycle remains intact and hyperscalers continue advancing both software (NVDA demand) and hardware breadth (TSM, AVGO, equipment vendors) simultaneously — if capex collapses across the stack, SMH's diversification provides no protection against sector-wide drawdown.",
-  "regime_sensitivity": "In a low_vix regime (current state at 17.68, down 9.10% today), SMH's normal volume and steady upside reflect confidence without fear. If VIX spikes into high_vix territory above 25, the bull case strengthens only if SMH holds above $600 — a breach would signal forced liquidation of core positions and would require re-evaluation. The call is regime-dependent on VIX staying below 22.",
+  "primary_argument": "SMH is outperforming its demand anchor (NVDA -0.38%) while the entire semiconductor chain holds steady, signaling healthy breadth across design, manufacturing, and photonics — the hardware layer of the AI thesis is intact and diversifying beyond single-stock concentration risk.",
+  "supporting_evidence": "SMH +1.09% vs NVDA -0.38% represents a positive divergence in the chain; TSM +0.46% and LITE +1.92% confirm production floor and optical infrastructure strength; SMH is 2.81% below its 10-day high of $637.90 and trading 17.2% above its 50-day MA of $528.87, positioning it in the upper half of its recent range (0.74) with room to extend.",
+  "key_assumption": "The semiconductor cycle remains in the expansion phase driven by hyperscaler AI CapEx, and the absence of new export control announcements or Taiwan escalation signals means the regulatory and geopolitical tail risks remain dormant rather than activated.",
+  "regime_sensitivity": "In a high-VIX regime (>25), this call weakens materially because SMH's concentration in NVDA and TSM becomes a liability — sector-wide semiconductor drawdowns hit all three simultaneously. Current VIX at 17.68 (down 9.10% today) is supportive; if VIX spikes above 30, the bull case requires re-anchoring to whether the spike is macro-driven (negative for SMH) or idiosyncratic (neutral or positive if it isolates NVDA weakness).",
   "watch_items": [
-    "SMH drops below $600 while NVDA holds above $200 — this divergence would signal ETF-specific liquidation pressure unrelated to semiconductor fundamentals and would invalidate the broad-cycle thesis.",
-    "Semiconductor equipment orders (ASML, LRCX forward guidance) decline sequentially or miss expectations in next earnings cycle — this would signal capex cycle deceleration before it shows up in chip demand and would be the earliest kill trigger for sustained SMH upside."
+    "SMH drops more than 3% while NVDA holds flat or rises — signals sector-wide semiconductor weakness unrelated to AI demand, invalidating the chain thesis",
+    "New US export control announcement targeting advanced semiconductor manufacturing or packaging — immediately activates tail risk across NVDA, TSM, and SMH simultaneously, overriding momentum"
   ]
 }
 ```

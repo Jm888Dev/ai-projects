@@ -4,15 +4,15 @@
   "ticker": "AVGO",
   "direction": "HOLD",
   "confidence": 2,
-  "statistical_anchor": "AVGO down 0.85% on normal volume (1.08x avg) with price at 0.09 position in 10-day range ($372.1–$481.57), 20.66% below recent high, trading below 50-day MA ($406.45). 5-day return is -3.66% against choppy trend with -1 session streak. Data shows exhaustion, not conviction in either direction.",
-  "volume_assessment": "Volume at 1.08x 30-day average is normal tape, not elevated conviction. The 0.85% decline occurred on routine volume — this is drift, not capitulation or accumulation. Volume signal does not validate the downward price move as structural. Thin conviction backing suggests noise rather than durable directional commitment.",
-  "trend_assessment": "AVGO is in choppy consolidation. Price sits 20.66% below 10-day high ($481.57) and 9% below 50-day MA ($406.45). The 5-day return of -3.66% shows recent weakness, but the 3-day return of +2.68% shows intra-period volatility. Single session streak (-1) indicates no momentum building. Position in range at 0.09 (near low) suggests potential support proximity, but no statistical evidence of reversal yet.",
-  "regime_context": "Fed paused, rates stable at 4.2% UST 10Y, USD stable. This regime historically supports semiconductor multiple stability but does not drive rotation. VIX down 9.1% to 17.68 (normal regime) removes fear premium that would compress AVGO valuation. Macro backdrop is neutral-to-supportive, not a tailwind. The thesis assumes hyperscaler custom silicon rotation, but macro regime does not independently validate that thesis — it simply does not contradict it.",
+  "statistical_anchor": "AVGO down 0.85% on normal volume (1.08x 30-day avg) while chain peers show mixed signals: NVDA -0.38%, LITE +1.92%, SMH +1.09%, QQQ +0.27%. Price at $382.07 is 20.66% below 10-day high of $481.57 and trading below 50-day MA of $406.45. 5-day return is -3.66% against 3-day return of +2.68%, indicating choppy, exhausted momentum. No macro catalyst this week. Statistical probability of directional clarity over next 3-5 sessions is low.",
+  "volume_assessment": "Volume at 1.08x 30-day average is normal — not elevated conviction, not depressed noise. The -0.85% decline occurred on routine tape, suggesting the move is neither capitulation nor accumulation. This is indifferent volume behind a small negative move. Durability is weak in both directions.",
+  "trend_assessment": "AVGO is in a choppy consolidation phase. Position in recent range is 0.09 (near the low end of 10-day band $372.1–$481.57), but price is below its 50-day MA at $406.45, indicating intermediate-term weakness. 3-day return of +2.68% was erased by 5-day return of -3.66%, confirming lack of sustained directional momentum. Streak of -1 session is insufficient to establish a new downtrend. No clear trend — this is range-bound chop.",
+  "regime_context": "Fed is data-dependent and paused; 10Y UST stable at 4.2%; USD/SGD stable at 1.34; VIX down 9.10% to 17.68 (normal regime). In a stable rate environment with low volatility, semiconductor infrastructure plays like AVGO typically trade on company-specific catalysts (custom chip wins, contract renewals, competitive positioning) rather than macro tailwinds. The absence of new hyperscaler CapEx guidance or custom chip announcements this week removes the primary thesis catalyst. Macro is neutral-to-supportive but not a driver.",
   "watch_items": [
-    "AVGO closes below $372.1 (10-day low) on elevated volume — signals breakdown below support and would shift direction to REDUCE",
-    "AVGO reclaims $406.45 (50-day MA) with volume >1.3x average — signals trend reversal and would shift direction to ACCUMULATE",
-    "NVDA-AVGO correlation divergence: if NVDA falls >2% while AVGO holds flat or rises — thesis rotation signal; if both fall together >2% — sector drawdown signal requiring EXIT evaluation",
-    "Volume spike >1.5x average on any directional move — would increase confidence from 2 to 4 regardless of direction"
+    "Break below 10-day low of $372.10 would signal capitulation and warrant REDUCE; break above 10-day high of $481.57 would signal momentum recovery and warrant ACCUMULATE.",
+    "Custom chip design win announcement from Google, Meta, or Apple — this is the core thesis catalyst and would shift statistical probability sharply toward ACCUMULATE if announced.",
+    "AVGO vs NVDA divergence signal: if NVDA falls sharply while AVGO holds or rises, thesis confirmation; if both fall together, thesis breaks and REDUCE warranted.",
+    "Volume spike above 1.5x 30-day average on directional move would signal conviction and shift confidence from 2 to 4+; current normal volume suggests institutional indifference."
   ]
 }
 ```

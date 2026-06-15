@@ -66,11 +66,11 @@
     {
       "ticker": "G3B.SI",
       "instrument_type": "etf",
-      "price": 5.221,
-      "prev_close": 5.199,
-      "pct_change": 0.4232,
-      "volume": 181027,
-      "volume_vs_avg": 0.55,
+      "price": 5.28,
+      "prev_close": 5.222,
+      "pct_change": 1.1107,
+      "volume": 216517,
+      "volume_vs_avg": 0.66,
       "volume_signal": "low"
     },
     {

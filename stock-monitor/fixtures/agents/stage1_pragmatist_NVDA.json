@@ -4,15 +4,15 @@
   "ticker": "NVDA",
   "direction": "HOLD",
   "confidence": 2,
-  "statistical_anchor": "NVDA is down 0.38% on volume at 0.68x 30-day average (conviction absent), trading 8.44% below its 10-day high of $224.1, below its 50-day MA of $206.7, with a choppy 2-session streak and negative 5-day return of -1.65%. The weight of data suggests mean reversion pressure rather than directional conviction in either direction.",
-  "volume_assessment": "Volume signal is explicitly low at 0.68x 30-day average. The 0.38% decline is occurring on thin tape — this is noise, not conviction selling. A move of this magnitude on sub-average volume has low durability and does not establish a new directional trend. Absence of volume confirmation is the most material negative signal.",
-  "trend_assessment": "Price is choppy with a 2-session streak (insufficient momentum), positioned at 0.2 in recent range (closer to lows than highs), and trading below the 50-day MA at $206.7. The 3-day return is positive at +2.38% but the 5-day return is negative at -1.65%, indicating recent weakness after an earlier bounce. No clear directional momentum. The 8.44% distance from the 10-day high suggests price has already retreated from a local peak without establishing support.",
-  "regime_context": "Fed stance is data-dependent and paused; 10Y UST at 4.2% is stable; macro environment is quiescent with no major events this week. VIX is at 17.68 in normal regime. This is a low-volatility, low-conviction environment. Semiconductor valuations are typically supported by accommodative rate regimes — current stability does not provide tailwinds but does not create headwinds. No macro catalyst to drive NVDA repricing in either direction this week.",
+  "statistical_anchor": "NVDA down 0.38% on 0.68x average volume (low conviction) while chain peers (TSM +0.46%, LITE +1.92%, SMH +1.09%) move higher. Price at 0.2 position in 10-day range, $18.91 below 10-day high (-8.44%), and below 50-day MA ($206.70). 5-day return negative (-1.65%) but 3-day return positive (+2.38%) signals choppy, indecisive price action with no clear directional momentum.",
+  "volume_assessment": "Volume is thin (0.68x 30-day average) on a down day. This is noise, not conviction selling. The decline lacks institutional force. If NVDA were breaking down on elevated volume, the statistical picture would shift to REDUCE. Instead, low volume on a small down move suggests rotation within the chain rather than sector-wide stress.",
+  "trend_assessment": "Price is choppy with a 2-session streak (insufficient for trend confirmation). Currently 8.44% below 10-day high and trading below 50-day MA ($206.70 vs $205.19 current). This is a weak technical position — not in breakout territory, not in confirmed downtrend. The 3-day return (+2.38%) vs 5-day return (-1.65%) shows conflicting momentum signals over different timeframes. Position in range (0.2) indicates price is closer to recent lows than highs, but not at extreme.",
+  "regime_context": "Fed data-dependent, rates stable at 4.2% UST 10Y, VIX at 17.68 (normal regime). This environment typically supports semiconductor valuations but does not force them higher. No macro tailwind or headwind this week. The rate environment is neutral — neither compressing nor expanding multiples. Geopolitical signals (Taiwan, export controls) show no new escalation, removing tail-risk premium but also removing urgency to accumulate.",
   "watch_items": [
-    "Volume conviction threshold: if next session closes on volume >1.2x 30-day average, directional signal becomes material; current thin tape invalidates the move",
-    "50-day MA support: if NVDA closes below $206.7 for 3 consecutive sessions, trend shifts from choppy to downtrend; currently at critical inflection",
-    "Chain divergence: LITE +1.92% and TSM +0.46% are moving independently from NVDA -0.38%; if this divergence persists for 5+ sessions, it signals NVDA-specific weakness rather than sector-wide pressure",
-    "Distance from high: if NVDA falls below $200.42 (10-day low), position in range moves to 0.0 and signals potential capitulation; monitor for volume spike on break"
+    "Volume spike above 1.2x 30-day average on either direction — would signal conviction and break the current noise regime",
+    "Price break below $200.42 (10-day low) on elevated volume — would shift statistical picture to REDUCE; hold above suggests consolidation",
+    "Chain divergence: if TSM, LITE, AVGO continue higher while NVDA stalls below 50-day MA for 3+ sessions, signals demand anchor weakness relative to supply chain",
+    "Next earnings/guidance update on data centre revenue and Blackwell allocation — currently no catalyst on calendar this week"
   ]
 }
 ```
