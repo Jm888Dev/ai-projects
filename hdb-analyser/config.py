@@ -80,6 +80,53 @@ SAMPLE_SIZE = 20
 # on a slow data.gov.sg response.
 REQUEST_TIMEOUT = 15
 
+# ── BUYER TYPES ──
+# First-class buyer classification — routes HDB rules correctly.
+# No analyst section may assume first_timer. Rules are looked up by type.
+# All figures indicative — confirm via HFE letter.
+BUYER_TYPES = {
+    "first_timer": {
+        "description": "Never owned any property — public or private",
+        "ehg_eligible": True,
+        "resale_levy": False,
+        "wait_period_months": 0,
+        "ltv_standard": 0.75,
+        "notes": "Eligible for EHG up to $120,000 depending on income band"
+    },
+    "second_timer": {
+        "description": "Previously owned HDB flat, MOP served",
+        "ehg_eligible": False,
+        "resale_levy": True,
+        "wait_period_months": 0,
+        "ltv_standard": 0.75,
+        "notes": "Resale levy applies — $15,000 for 3-room, $25,000 for 4-room, $30,000 for 5-room and above. Confirm exact amount via HFE."
+    },
+    "upgrader": {
+        "description": "Moving from smaller to larger HDB flat, MOP served",
+        "ehg_eligible": False,
+        "resale_levy": True,
+        "wait_period_months": 0,
+        "ltv_standard": 0.75,
+        "notes": "Resale levy applies if first flat was subsidised. Confirm classification via HFE."
+    },
+    "downgrader": {
+        "description": "Moving from larger to smaller HDB flat, typically retirement",
+        "ehg_eligible": False,
+        "resale_levy": True,
+        "wait_period_months": 0,
+        "ltv_standard": 0.75,
+        "notes": "Silver Housing Bonus may apply for buyers 55+. Resale levy if first flat was subsidised."
+    },
+    "private_downgrader": {
+        "description": "Previously owned private property, now buying HDB resale",
+        "ehg_eligible": False,
+        "resale_levy": False,
+        "wait_period_months": 15,
+        "ltv_standard": 0.75,
+        "notes": "15-month wait period from disposal of private property before eligible to buy HDB resale. No resale levy. No EHG."
+    },
+}
+
 # ── ANALYST SECTION DEPENDENCIES ──
 # Defines which prior section results each section needs as context.
 # Sections not listed receive only raw transaction data — no accumulation.

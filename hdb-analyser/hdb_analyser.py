@@ -28,23 +28,24 @@ from shared.utils import extract_json  # Shared utility — same cleaner for bot
 from dotenv import load_dotenv
 
 from config import (
-    ANALYST_MODEL,        # Sonnet — complex buyer reasoning
-    TRANSLATOR_MODEL,     # Haiku — plain English rewrite
-    ANALYST_MAX_TOKENS,   # Per-section token budget for analyst
-    TRANSLATOR_MAX_TOKENS, # Per-section token budget for translator
-    ANALYST_TEMPERATURE,  # Low — keeps analysis factual
-    TRANSLATOR_TEMPERATURE, # Slightly higher — natural language
-    API_BASE_URL,         # data.gov.sg endpoint
-    HDB_RESOURCE_ID,      # Dataset identifier
-    FETCH_LIMIT,          # Raw records pulled from API
-    SAMPLE_SIZE,          # Records passed to Claude after filtering
-    REQUEST_TIMEOUT,      # API call timeout in seconds
-    DEFAULT_TOWN,         # Default buyer query town
-    DEFAULT_FLAT_TYPE,    # Default flat type filter
-    ANALYST_SECTIONS,     # Seven analyst concern sections
-    TRANSLATOR_SECTIONS,  # Seven buyer-facing briefing sections
-    ANALYST_SECTION_DEPENDENCIES, # Controls which sections get prior context
-    TRANSLATOR_SECTION_TOKENS,  # Per-section token budgets for translator
+    ANALYST_MODEL,
+    TRANSLATOR_MODEL,
+    ANALYST_MAX_TOKENS,
+    TRANSLATOR_MAX_TOKENS,
+    ANALYST_TEMPERATURE,
+    TRANSLATOR_TEMPERATURE,
+    API_BASE_URL,
+    HDB_RESOURCE_ID,
+    FETCH_LIMIT,
+    SAMPLE_SIZE,
+    REQUEST_TIMEOUT,
+    DEFAULT_TOWN,
+    DEFAULT_FLAT_TYPE,
+    ANALYST_SECTIONS,
+    TRANSLATOR_SECTIONS,
+    ANALYST_SECTION_DEPENDENCIES,
+    TRANSLATOR_SECTION_TOKENS,
+    BUYER_TYPES,              # NEW — buyer type rules registry
 )
 from prompts.analyst_persona import (
     HDB_ANALYST_SYSTEM_PROMPT,
@@ -146,27 +147,47 @@ def filter_transactions(df, town, flat_type, sample_size=SAMPLE_SIZE):
 def format_for_claude(sample, town, flat_type, buyer_profile=None):
     """
     Converts the DataFrame sample into a structured text block Claude can
-    reason across. Includes the buyer profile so Claude can apply loan
-    tenure, TDSR, CPF, and grant rules specific to this buyer.
-    None values are passed explicitly — Claude flags what it cannot assess.
+    reason across. Includes the buyer profile and the rules that apply to
+    this buyer's type — so Claude applies the correct grants, levies, and
+    wait periods without guessing.
     """
 
     display_cols = ['month', 'storey_range', 'floor_area_sqm',
                     'resale_price', 'remaining_lease']
     table = sample[display_cols].to_string(index=False)
 
-    # Build buyer profile text — include None values so Claude knows
-    # which fields are missing and can flag the impact
+    # Build buyer profile text
     profile_text = ""
     if buyer_profile:
         profile_lines = [f"  {k}: {v}" for k, v in buyer_profile.items()]
         profile_text = "\nBuyer profile:\n" + "\n".join(profile_lines)
+
+    # Look up the rules for this buyer's type.
+    # buyer_type is the routing key — pulls the correct rule set from BUYER_TYPES.
+    # Falls back to first_timer rules if buyer_type is missing or unrecognised —
+    # conservative default, not a silent assumption.
+    buyer_type_key = (buyer_profile or {}).get("buyer_type", "first_timer")
+    buyer_rules = BUYER_TYPES.get(buyer_type_key, BUYER_TYPES["first_timer"])
+
+    # Format the applicable rules as a clearly labelled block.
+    # Claude reads this alongside the profile — knows exactly what applies
+    # without having to infer from first_time_buyer boolean.
+    rules_text = (
+        f"\nApplicable rules for buyer type '{buyer_type_key}':\n"
+        f"  Description: {buyer_rules['description']}\n"
+        f"  EHG eligible: {buyer_rules['ehg_eligible']}\n"
+        f"  Resale levy: {buyer_rules['resale_levy']}\n"
+        f"  Wait period: {buyer_rules['wait_period_months']} months\n"
+        f"  Standard LTV: {int(buyer_rules['ltv_standard'] * 100)}%\n"
+        f"  Notes: {buyer_rules['notes']}"
+    )
 
     formatted = f"""
 Buyer criteria:
 - Town: {town.upper()}
 - Flat type: {flat_type.upper()}
 {profile_text}
+{rules_text}
 
 Most recent {len(sample)} resale transactions (newest first):
 {table}
@@ -451,15 +472,16 @@ if __name__ == "__main__":
     # Buyer profile — populate known fields, leave unknowns as None
     # Claude flags every None field and explains what it cannot assess
     BUYER_PROFILE = {
-        "age": 51,
-        "monthly_income_sgd": 12000,
-        "first_time_buyer": True,
-        "outstanding_loans": None,    # e.g. car loan monthly repayment
-        "cpf_oa_balance": None,       # current CPF Ordinary Account balance
-        "budget_ceiling_sgd": 700000,
-        "preferred_storey": None,     # "high", "mid", "low", or None
-        "citizenship": "SC"
-    }
+    "buyer_type": "first_timer",      # first_timer | second_timer | upgrader | downgrader | private_downgrader
+    "age": 51,
+    "monthly_income_sgd": 12000,
+    "first_time_buyer": True,         # kept for backward compat — derived from buyer_type
+    "outstanding_loans": None,
+    "cpf_oa_balance": None,
+    "budget_ceiling_sgd": 700000,
+    "preferred_storey": None,
+    "citizenship": "SC"
+}
 
     # Buyer criteria — change these to test different towns and flat types
     TOWN = DEFAULT_TOWN 
