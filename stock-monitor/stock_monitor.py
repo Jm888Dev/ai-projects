@@ -122,6 +122,11 @@ def sm_call_llm(**kwargs):
             # fast tier — phi4-mini for all fast-tier stages
             slm_model = config.SLM_FAST_MODEL
 
+    # Look up this specific model's real context ceiling — None if the
+    # model isn't in the registry, which makes _call_ollama() fall back
+    # to OLLAMA_NUM_CTX_FALLBACK_MAX rather than guessing.
+    model_max_ctx = config.OLLAMA_MODEL_MAX_CTX.get(slm_model) if use_slm else None
+
     # ── Make the call ──────────────────────────────────────────
     text, usage = call_llm(
         **kwargs,
@@ -132,6 +137,11 @@ def sm_call_llm(**kwargs):
         slm_model=slm_model,
         ollama_base_url=config.OLLAMA_BASE_URL,
         ollama_timeout=config.OLLAMA_TIMEOUT,
+        ollama_model_max_ctx=model_max_ctx,
+        ollama_chars_per_token_estimate=config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE,
+        ollama_num_ctx_safety_margin=config.OLLAMA_NUM_CTX_SAFETY_MARGIN,
+        ollama_num_ctx_fallback_max=config.OLLAMA_NUM_CTX_FALLBACK_MAX,
+        ollama_hardware_cap=config.OLLAMA_NUM_CTX_HARDWARE_CAP,
     )
 
     # ── Shadow cost computation ────────────────────────────────
@@ -1137,6 +1147,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
         retried=usage.get("retried", False),
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
+        prompt_text=usage.get("prompt_text"),
     )
 
     # Detect LLM error — graceful degradation, skip this agent
@@ -1268,6 +1279,7 @@ def run_contrarian(stage1_outputs, data_package, ticker,
         retried=usage.get("retried", False),
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
+        prompt_text=usage.get("prompt_text"),
     )
 
     if text.startswith("[LLM_ERROR]"):
@@ -1385,6 +1397,7 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
         retried=usage.get("retried", False),
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
+        prompt_text=usage.get("prompt_text"),
     )
 
     if text.startswith("[LLM_ERROR]"):
@@ -1524,6 +1537,7 @@ def run_translator(meta_output, run_id):
         retried=usage.get("retried", False),
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
+        prompt_text=usage.get("prompt_text"),
     )
 
     if text.startswith("[LLM_ERROR]"):

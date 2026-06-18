@@ -651,6 +651,24 @@ SLM_HEAVY_MODEL_STAGE3 = "gemma4:26b" # heavy tier Stage 3 — sovereign Meta-Ag
 # Values are tier names — resolved to actual model by the wrapper.
 # Changing a stage from "fast" to "heavy" is a one-line edit here.
 # Stage 1 revisit: Day 21 (feeds added), Day 31 (geospatial added)
+# ── DAY 20 FINDING — STAGE 3 HEAVY TIER TIMEOUT (informational, not a lock) ──
+# Confirmed via the heavy tier benchmark run, 2026-06-16 evening (overnight,
+# unattended — query slm_benchmarks WHERE model IN ('gemma4:26b',
+# 'qwen3.6:35b-a3b') AND prompt_size='xxl' to see the raw rows):
+#   gemma4:26b       xxl — 602.1s, 0 input/output tokens — timeout, 23:18:35
+#   qwen3.6:35b-a3b  xxl — 602.1s, 0 input/output tokens — timeout, 23:08:33
+# Both heavy-tier models hit OLLAMA_TIMEOUT=600 on the real Stage 3 prompt
+# (~24,740 input tokens, the captured stage3_meta_agent call) with zero
+# tokens produced — same honest-timeout signature phi4-mini showed at
+# Day 19, not a context-sizing problem (the num_ctx formula puts required
+# context well under both the model ceiling and OLLAMA_NUM_CTX_HARDWARE_CAP
+# at this size). This is a compute-speed limit on current hardware, not an
+# architectural reason to remove "heavy" as a valid stage3 option below.
+# SLM_STAGE_MODELS["stage3"] stays "heavy" deliberately — the option stays
+# open. This comment is the place that explains why it doesn't work today
+# and what would need to change (faster hardware, a different model, a
+# longer accepted timeout) before trying again.
+
 SLM_STAGE_MODELS = {
     "stage1":     "fast",   # phi4-mini — 28 calls/run, speed critical
     "stage2":     "fast",   # gemma4:e4b — reasoning depth, one call/ticker
@@ -664,6 +682,43 @@ SLM_STAGE_MODELS = {
 # the machine. If this URL ever points outside localhost, reject it.
 OLLAMA_BASE_URL = "http://localhost:11434/api/chat"
 OLLAMA_TIMEOUT  = 600  # seconds — heavy models need up to 5 minutes per call
+
+# Context window ceilings per model — must not exceed what the model
+# actually supports. Source: `ollama show <model>` (no --modelfile flag),
+# field "context length". Verified Day 19.
+OLLAMA_MODEL_MAX_CTX = {
+    "phi4-mini":         131072,
+    "gemma4:e4b":        131072,
+    "qwen3.6:35b-a3b":   262144,
+    "gemma4:26b":        262144,
+}
+
+# Rough character-to-token estimate for sizing num_ctx before the call.
+# Ollama doesn't report input token count until AFTER the response
+# returns, so we estimate from prompt character length beforehand.
+# ~4 characters per token is a standard heuristic for English text.
+OLLAMA_CHARS_PER_TOKEN_ESTIMATE = 4
+
+# Safety margin added on top of (estimated input + max_tokens) to absorb
+# tokenizer estimation error — the char/4 heuristic is approximate, not exact.
+OLLAMA_NUM_CTX_SAFETY_MARGIN = 2048
+
+# Fallback ceiling used only if a model is not in OLLAMA_MODEL_MAX_CTX —
+# conservative default, not a guess at any specific model's real limit.
+OLLAMA_NUM_CTX_FALLBACK_MAX = 8192
+
+# Hardware safety cap — independent of what the model architecturally
+# supports. qwen3.6:35b-a3b and gemma4:26b run CPU-only on this machine
+# (i9, 32GB RAM). Model weights alone consume 17-23GB; KV cache scales
+# with num_ctx on top of that. A model's architectural ceiling (e.g.
+# 262,144 for the heavy tier) says nothing about whether 32GB of RAM
+# can actually hold weights + cache at that size. This cap exists to
+# prevent OOM crashes or catastrophic disk-swap slowdowns regardless
+# of what the model could theoretically support.
+# Set Day 19 based on Mack's judgement of his machine's safe limit —
+# revisit if observed memory usage during heavy tier runs suggests
+# this is too conservative or too aggressive.
+OLLAMA_NUM_CTX_HARDWARE_CAP = 32000
 
 # ── SLM MODEL PRICING (shadow cost reference) ──────────────
 # SLM calls cost $0.00 — added here so MODEL_PRICING is complete

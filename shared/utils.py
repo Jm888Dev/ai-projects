@@ -62,25 +62,15 @@ def format_warning(severity, file, function, description, fix):
     at point of failure AND append to run_warnings for the
     end-of-run consolidated summary.
     """
-    # Pad WARN to 5 chars so columns align with ERROR in terminal
-    # and in Excel when sorted by severity
     sev = "ERROR" if severity.upper() == "ERROR" else "WARN "
     return f"{sev} | {file} | {function} | {description} | {fix}"
 
 
 # ─────────────────────────────────────────────────────────────
 # INTERNAL HELPERS
-# Prefixed with _ to signal these are not for external use.
-# Called by update_market_history() to guard yfinance field reads.
 # ─────────────────────────────────────────────────────────────
 
 def _safe_float(value):
-    """
-    Converts a value to float safely.
-    Returns None if the value is null, NaN, or unconvertible.
-    NaN from pandas is a valid Python float but not a valid price —
-    we treat it as missing data.
-    """
     try:
         if value is None:
             return None
@@ -91,12 +81,6 @@ def _safe_float(value):
 
 
 def _safe_int(value):
-    """
-    Converts a value to int safely.
-    Returns None if the value is null, NaN, or unconvertible.
-    Volume from yfinance is occasionally NaN on thinly traded tickers
-    or when markets are closed — this guards against that.
-    """
     try:
         if value is None:
             return None
@@ -111,15 +95,6 @@ def _safe_int(value):
 # ─────────────────────────────────────────────────────────────
 
 def extract_json(raw):
-    """
-    Extracts and cleans a JSON object from Claude's raw response text.
-    Handles: code fences, preamble, trailing text, markdown bold markers,
-    and red_flags returned as an array instead of a string.
-
-    Returns (parsed_dict, None) on success, (None, error_message) on failure.
-    """
-    # Step 1: Find the JSON object by locating first { and last }
-    # Everything outside these boundaries is discarded
     start = raw.find("{")
     end = raw.rfind("}") + 1
 
@@ -127,12 +102,8 @@ def extract_json(raw):
         return None, "No JSON object found in response"
 
     clean = raw[start:end]
-
-    # Step 2: Remove markdown bold markers — ** never appears in valid JSON
     clean = clean.replace("**", "")
 
-    # Step 3: Collapse red_flags array into a string if Claude returned a list
-    # Despite schema instructions, Claude sometimes returns ["item1", "item2"]
     array_pattern = re.compile(r'"red_flags"\s*:\s*\[([^\]]*)\]', re.DOTALL)
     match = array_pattern.search(clean)
     if match:
@@ -141,7 +112,6 @@ def extract_json(raw):
         joined = " ".join(items)
         clean = array_pattern.sub(f'"red_flags": "{joined}"', clean)
 
-    # Step 4: Parse — this is the only place a parse error can occur
     try:
         parsed = json.loads(clean)
         return parsed, None
@@ -155,42 +125,31 @@ def extract_json(raw):
 def _call_ollama(prompt, system=None, model="phi4-mini",
                  max_tokens=1024, temperature=0.3,
                  base_url="http://localhost:11434/api/chat",
-                 timeout=300):
+                 timeout=300, model_max_ctx=None,
+                 chars_per_token_estimate=4, num_ctx_safety_margin=2048,
+                 num_ctx_fallback_max=8192, hardware_cap=32000):
     """
     Makes a single inference call to the local Ollama REST endpoint.
 
-    Sovereign tier — no data leaves the machine. No Anthropic client
-    needed. Pure requests.post() to localhost.
+    model_max_ctx:             real context ceiling for this specific
+                               model (e.g. 131072 for phi4-mini), looked
+                               up by the caller from
+                               config.OLLAMA_MODEL_MAX_CTX. None means
+                               unknown — falls back to num_ctx_fallback_max.
+    chars_per_token_estimate:  rough chars-per-token heuristic used to
+                               estimate input size before the call,
+                               since Ollama only reports actual token
+                               counts in the response, not before.
+    num_ctx_safety_margin:    extra tokens added on top of the estimate
+                               to absorb estimation error.
+    num_ctx_fallback_max:     conservative ceiling used only when
+                               model_max_ctx is None.
 
-    Why a separate function and not inline in call_llm()?
-    Separation of concerns. call_llm() handles routing, retries,
-    fixture logic, and warnings. _call_ollama() does one thing:
-    send a prompt to Ollama and return text + token counts.
-    If Ollama's API changes, this is the only function that needs
-    updating — call_llm() is untouched.
-
-    Parameters:
-      prompt:      user message content
-      system:      system prompt (injected as system role message)
-      model:       Ollama model tag e.g. 'phi4-mini', 'gemma4:e4b'
-      max_tokens:  maximum tokens in response (num_predict in Ollama)
-      temperature: sampling temperature
-      base_url:    Ollama chat endpoint — always localhost, never external
-      timeout:     seconds before request times out — heavy models need
-                   up to 300 seconds on CPU-only hardware
-
-    Returns (text, usage_dict) matching call_llm() return format.
-    usage_dict contains: input_tokens, output_tokens, model_used,
-    fallback_used, stop_reason, thinking_tokens.
-
+    Returns (text, usage_dict).
     Sovereignty rule: base_url must always be localhost.
-    If base_url ever points outside localhost, this function is
-    being misused — the sovereign tier must never phone home.
     """
     import requests
 
-    # Sovereignty guard — localhost only, no exceptions
-    # If this fires, something upstream has misconfigured OLLAMA_BASE_URL
     if "localhost" not in base_url and "127.0.0.1" not in base_url:
         raise ValueError(
             f"_call_ollama() sovereignty violation: base_url '{base_url}' "
@@ -199,20 +158,43 @@ def _call_ollama(prompt, system=None, model="phi4-mini",
             f"in config.py — it must always be http://localhost:11434/api/chat"
         )
 
-    # Build messages array — Ollama chat endpoint uses OpenAI-style
-    # messages format: list of role/content dicts.
-    # System prompt injected as first message with role='system'
-    # if provided — same pattern as Anthropic's system= parameter
-    # but embedded in the messages array instead.
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
 
-    # Build request payload
-    # num_predict = max output tokens (Ollama's name for max_tokens)
-    # stream=False — wait for complete response, simpler parsing
-    # options dict controls sampling parameters
+    # num_ctx must be set explicitly — Ollama defaults to a small context
+    # window (commonly 2048 tokens) regardless of model capability.
+    # Without this, prompts larger than the default are silently truncated
+    # and the model reasons on a fragment with no warning of any kind.
+    # Discovered Day 19 during SLM benchmarking.
+    #
+    # num_ctx covers INPUT + OUTPUT combined, not output alone — an
+    # earlier version of this fix (same session) wrongly treated it as
+    # output-only headroom. Corrected after checking real model ceilings
+    # via `ollama show <model>` — phi4-mini and gemma4:e4b support up to
+    # 131,072 tokens; qwen3.6:35b-a3b and gemma4:26b support up to 262,144.
+    #
+    # We don't know the exact input token count before the call — Ollama
+    # only reports it in the response — so we estimate from character
+    # count using a standard ~4 chars/token heuristic, then add the
+    # output budget and a safety margin for estimation error.
+    estimated_input_tokens = len(prompt) // chars_per_token_estimate
+    if system:
+        estimated_input_tokens += len(system) // chars_per_token_estimate
+
+    required_ctx = estimated_input_tokens + max_tokens + num_ctx_safety_margin
+
+    # Three-way cap, minimum wins:
+    #   1. model_max_ctx   — what the model architecturally supports
+    #   2. hardware_cap    — what this machine can safely hold in RAM
+    #                        regardless of model capability
+    #   3. required_ctx    — what the actual prompt+output need
+    # This module is config-free, so both ceiling values arrive as
+    # parameters from the caller's config.py lookups.
+    model_ceiling = model_max_ctx if model_max_ctx else num_ctx_fallback_max
+    required_ctx = min(required_ctx, model_ceiling, hardware_cap)
+
     payload = {
         "model":    model,
         "messages": messages,
@@ -220,47 +202,27 @@ def _call_ollama(prompt, system=None, model="phi4-mini",
         "options": {
             "num_predict":  max_tokens,
             "temperature":  temperature,
+            "num_ctx":      required_ctx,
         },
     }
 
-    # POST to Ollama — raw requests, no SDK, no vendor abstraction.
-    # This is intentional — sovereignty principle requires independence
-    # from any vendor's Python package.
     response = requests.post(
         base_url,
         json=payload,
         timeout=timeout,
     )
 
-    # Raise on HTTP error — 4xx/5xx become exceptions that
-    # call_llm()'s error handling catches and formats as warnings
     response.raise_for_status()
 
     data = response.json()
 
-    # Extract response text from Ollama's response structure:
-    # data["message"]["content"] is the assistant's reply
     text = data.get("message", {}).get("content", "")
 
-    # Extract token counts — Ollama returns these in the response root
-    # prompt_eval_count = input tokens (what Ollama counted)
-    # eval_count        = output tokens generated
-    # These may differ from Anthropic's tokenizer counts — that delta
-    # is the shadow cost calibration signal logged in llm_calls
     input_tokens  = data.get("prompt_eval_count", 0)
     output_tokens = data.get("eval_count", 0)
 
-    # thinking_tokens — Ollama returns this separately when thinking
-    # mode is active (Gemma4 with <|think|> token in system prompt).
-    # Zero for models without thinking mode or when thinking disabled.
-    # Logged to llm_calls.thinking_tokens for Day 17 audit analysis.
     thinking_tokens = data.get("thinking_eval_count", 0)
 
-    # stop_reason — Ollama calls this done_reason
-    # "stop" = completed normally (equivalent to Anthropic's "end_turn")
-    # "length" = hit num_predict limit (equivalent to "max_tokens")
-    # Map to Anthropic convention so call_llm() truncation logic
-    # works identically regardless of which tier produced the response
     raw_stop = data.get("done_reason", "stop")
     stop_reason = "max_tokens" if raw_stop == "length" else "end_turn"
 
@@ -285,62 +247,24 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
              capture_fixtures=False, fixture_dir=None,
              use_slm=False, slm_model=None,
              ollama_base_url="http://localhost:11434/api/chat",
-             ollama_timeout=300):
+             ollama_timeout=300, ollama_model_max_ctx=None,
+             ollama_chars_per_token_estimate=4,
+             ollama_num_ctx_safety_margin=2048,
+             ollama_num_ctx_fallback_max=8192,
+             ollama_hardware_cap=32000):
     """
     Universal wrapper for all Claude API calls across both projects.
-
-    Tries the primary model first. If it fails and a fallback model is
-    provided, tries that. If both fail, returns a graceful error string
-    rather than crashing the pipeline.
-
-    Truncation handling:
-      If stop_reason is max_tokens, retries once at 1.5x token budget.
-      If still truncated after retry, passes the truncated output through
-      with a TRUNCATION_FLAG appended — never drops the signal.
-      The truncated output still carries useful signal even if incomplete.
-
-    Parameters:
-      use_live_agents:   True = make real API calls; False = load from fixtures.
-                         Default True — a caller with no fixture system gets
-                         real API calls, which is always the safe behaviour.
-      capture_fixtures:  True = save live responses to disk as fixture files.
-                         Default False — fixtures are frozen unless explicitly
-                         enabled. Never overwrite fixtures accidentally.
-      fixture_dir:       Path to the folder where fixture JSONs are stored.
-                         Caller passes this in — shared/utils.py never constructs
-                         project-specific paths itself. Required when
-                         use_live_agents=False; ignored otherwise.
-
-    HOW TO USE FROM A NEW PROJECT:
-      Define a thin wrapper in your project that injects your config values:
-        def my_call_llm(**kwargs):
-            return call_llm(**kwargs,
-                            use_live_agents=config.USE_LIVE_AGENTS,
-                            capture_fixtures=config.CAPTURE_FIXTURES,
-                            fixture_dir=config.FIXTURE_DIR)
-      Then call my_call_llm() everywhere in your project — config is declared
-      once in the wrapper, never repeated at call sites.
 
     Returns (response_text, usage_dict).
     usage_dict contains: input_tokens, output_tokens, model_used,
     fallback_used, stop_reason, retried, truncated, retry_budget,
-    warnings (list of pipe-delimited strings for run summary).
+    prompt_text, warnings.
     """
-    # Accumulates pipe-delimited warning strings during this call.
-    # Returned via usage["warnings"] so the caller can append them
-    # to run_warnings for the end-of-run consolidated summary.
-    # Always print() at point of failure AND append here.
     warnings = []
 
-    # ── Fixture agent logic ───────────────────────────────────
-    # fixture_dir comes from the caller — this function never constructs
-    # project-specific paths. Each project knows where its fixtures live.
     _FIXTURE_DIR = Path(fixture_dir) if fixture_dir else None
 
     if call_type and not use_live_agents:
-        # Guard: fixture mode requested but no directory provided —
-        # unrecoverable, hard stop per Day 9 principle. Silent fallback
-        # here would mask a misconfiguration and waste API budget.
         if _FIXTURE_DIR is None:
             msg = format_warning(
                 "ERROR", "shared/utils.py", "call_llm()",
@@ -367,14 +291,12 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                 "retried":       False,
                 "truncated":     False,
                 "retry_budget":  None,
-                "warnings":      [],  # no warnings on clean fixture load
+                "prompt_text":   prompt,
+                "warnings":      [],
             }
             print(f"[call_llm] Fixture loaded: {call_type}.json")
             return fixture_text, fixture_usage
         else:
-            # Hard stop — fixture missing means the pipeline cannot proceed.
-            # Always an ERROR, never a WARN — silent fallback to live API
-            # would defeat the purpose of fixture mode entirely.
             msg = format_warning(
                 "ERROR", "shared/utils.py", "call_llm()",
                 f"fixture not found for '{call_type}' "
@@ -385,15 +307,7 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
             )
             print(f"\n{msg}")
             raise FileNotFoundError(msg)
-    # ── End fixture load logic ────────────────────────────────
 
-# ── SLM sovereign tier routing ────────────────────────────
-    # When use_slm=True, route to local Ollama — no Anthropic client
-    # needed, no data leaves the machine.
-    # use_live_agents is implied True when use_slm=True — the wrapper
-    # enforces this so fixture mode and SLM mode are never combined
-    # accidentally (fixtures replay Anthropic outputs, not SLM outputs,
-    # unless captured from an SLM run deliberately).
     if use_slm:
         if not slm_model:
             msg = format_warning(
@@ -414,17 +328,20 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                 temperature=temperature,
                 base_url=ollama_base_url,
                 timeout=ollama_timeout,
+                model_max_ctx=ollama_model_max_ctx,
+                chars_per_token_estimate=ollama_chars_per_token_estimate,
+                num_ctx_safety_margin=ollama_num_ctx_safety_margin,
+                num_ctx_fallback_max=ollama_num_ctx_fallback_max,
+                hardware_cap=ollama_hardware_cap,
             )
 
-            # Inject standard fields expected by all callers
             slm_usage["fallback_used"] = False
             slm_usage["retried"]       = False
             slm_usage["truncated"]     = False
             slm_usage["retry_budget"]  = None
+            slm_usage["prompt_text"]   = prompt
             slm_usage["warnings"]      = []
 
-            # Handle truncation — same logic as Anthropic tier
-            # stop_reason already mapped to "max_tokens" by _call_ollama()
             if slm_usage["stop_reason"] == "max_tokens":
                 retry_budget = int(max_tokens * 1.5)
                 print(f"[call_llm] SLM truncation on {slm_model} — "
@@ -438,6 +355,11 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                         temperature=temperature,
                         base_url=ollama_base_url,
                         timeout=ollama_timeout,
+                        model_max_ctx=ollama_model_max_ctx,
+                        chars_per_token_estimate=ollama_chars_per_token_estimate,
+                        num_ctx_safety_margin=ollama_num_ctx_safety_margin,
+                        num_ctx_fallback_max=ollama_num_ctx_fallback_max,
+                        hardware_cap=ollama_hardware_cap,
                     )
                     slm_usage["retried"]       = True
                     slm_usage["retry_budget"]  = retry_budget
@@ -472,11 +394,6 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                         "Output may be incomplete.]"
                     )
 
-            # Fixture capture — SLM responses can be captured exactly
-            # like Anthropic responses. Same file format, same replay.
-            # This is intentional — fixtures test pipeline logic,
-            # not model identity. A fixture from an SLM run replays
-            # identically regardless of which model produced it.
             if call_type and capture_fixtures and _FIXTURE_DIR:
                 _FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
                 fixture_path = _FIXTURE_DIR / f"{call_type}.json"
@@ -515,14 +432,23 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                 "truncated":      False,
                 "retry_budget":   None,
                 "thinking_tokens": 0,
+                "prompt_text":    prompt,
                 "warnings":       warnings,
             }
+            # Same error prefix the Anthropic cloud path uses below — callers
+            # only check for "[LLM_ERROR]" and don't need to know WHICH
+            # provider failed, only THAT it failed. Before this fix, an
+            # Ollama failure returned "[SLM_ERROR]" instead, which none of
+            # the four call sites in stock_monitor.py matched — the error
+            # silently fell through to extract_json(), which correctly found
+            # no JSON and reported "JSON parse failed" instead of the real
+            # cause. One error dialect, not two — and a future third
+            # provider (e.g. DeepSeek) won't need its own prefix either.
             return (
-                f"[SLM_ERROR] Ollama call failed for '{slm_model}'. "
+                f"[LLM_ERROR] Ollama call failed for '{slm_model}'. "
                 f"Error: {slm_error}",
                 empty_usage,
             )
-    # ── End SLM routing ───────────────────────────────────────
 
     messages = [{"role": "user", "content": prompt}]
     call_kwargs = {
@@ -545,7 +471,6 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
         }
         return response.content[0].text, usage
 
-    # ── Attempt 1 — primary model ─────────────────────────────
     text  = None
     usage = None
 
@@ -587,11 +512,11 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                 "retried":       False,
                 "truncated":     False,
                 "retry_budget":  None,
+                "prompt_text":   prompt,
                 "warnings":      warnings,
             }
             return f"[LLM_ERROR] All models failed. Last error: {primary_error}", empty_usage
 
-    # ── Truncation detection and retry ────────────────────────
     usage["retried"]      = False
     usage["truncated"]    = False
     usage["retry_budget"] = None
@@ -645,11 +570,6 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
                 "accordingly.]"
             )
 
-    # ── Fixture capture logic ─────────────────────────────────
-    # Saves live response to disk when capture_fixtures=True.
-    # _FIXTURE_DIR comes from fixture_dir parameter — never constructed here.
-    # Frozen by default (capture_fixtures=False) so fixtures are never
-    # overwritten accidentally during normal runs.
     if call_type and use_live_agents and capture_fixtures and _FIXTURE_DIR:
         _FIXTURE_DIR.mkdir(parents=True, exist_ok=True)
         fixture_path = _FIXTURE_DIR / f"{call_type}.json"
@@ -665,11 +585,9 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
             )
             print(msg)
             warnings.append(msg)
-    # ── End fixture capture logic ─────────────────────────────
 
-    # Attach accumulated warnings to usage dict before returning.
-    # Caller reads usage["warnings"] and appends to run_warnings.
-    usage["warnings"] = warnings
+    usage["warnings"]     = warnings
+    usage["prompt_text"]  = prompt
 
     return text, usage
 
@@ -679,22 +597,6 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
 # ─────────────────────────────────────────────────────────────
 
 def update_market_history(tickers, use_live=True):
-    """
-    Fetches daily OHLCV data for all tickers and writes to market_history.
-
-    Two modes:
-      - First run for a ticker: fetches 5 years of history (backfill)
-      - Subsequent runs: fetches only new trading days since the last
-        stored date (delta pull)
-
-    Missed days are caught automatically on the next run — no manual
-    intervention needed. Safe to re-run: INSERT OR IGNORE on
-    (ticker, trade_date) prevents duplicates.
-
-    use_live=True  — fetches from yfinance (production and backfill)
-    use_live=False — skips fetch entirely, agents read from whatever
-                     is already in market_history or fixture CSV files
-    """
     import yfinance as yf
     from datetime import datetime, timedelta
     import database
@@ -708,17 +610,13 @@ def update_market_history(tickers, use_live=True):
 
     for ticker in tickers:
         try:
-            # Check what we already have for this ticker
             latest_date = database.get_latest_market_history_date(ticker)
 
             if latest_date is None:
-                # No history at all — fetch full 5-year backfill
                 start_date = (now - timedelta(days=5 * 365)).strftime("%Y-%m-%d")
                 print(f"[market_history] {ticker}: no history — "
                       f"backfilling from {start_date}")
             else:
-                # We have history — fetch only from the day after last stored
-                # yfinance start is inclusive so +1 day gives us new days only
                 last_dt = datetime.strptime(latest_date, "%Y-%m-%d")
                 start_date = (last_dt + timedelta(days=1)).strftime("%Y-%m-%d")
                 print(f"[market_history] {ticker}: last date {latest_date} — "
@@ -726,13 +624,10 @@ def update_market_history(tickers, use_live=True):
 
             today = now.strftime("%Y-%m-%d")
 
-            # Already current — nothing to fetch
             if start_date >= today:
                 print(f"[market_history] {ticker}: already current — skipping.")
                 continue
 
-            # Fetch from yfinance
-            # auto_adjust=True adjusts prices for splits and dividends
             df = yf.Ticker(ticker).history(
                 start=start_date,
                 end=today,
@@ -744,8 +639,6 @@ def update_market_history(tickers, use_live=True):
                       f"(market may be closed or ticker inactive).")
                 continue
 
-            # Build row dicts — iterate oldest to newest so pct_change
-            # is computed correctly from the prior row's close
             inserted_at = now.isoformat()
             rows = []
             prev_close = None
@@ -753,13 +646,11 @@ def update_market_history(tickers, use_live=True):
 
             for trade_date, row in df.sort_index().iterrows():
 
-                # Guard Close — a row without a close is not useful
                 close = _safe_float(row.get("Close"))
                 if close is None:
                     skipped_rows += 1
                     continue
 
-                # Compute daily percentage change from prior close
                 try:
                     pct_change = (
                         round(((close - prev_close) / prev_close) * 100, 4)
@@ -795,7 +686,6 @@ def update_market_history(tickers, use_live=True):
                 print(f"[market_history] {ticker}: {skipped_rows} rows "
                       f"skipped — null or malformed data.")
 
-            # Write the batch — INSERT OR IGNORE handles duplicates safely
             written = database.write_market_history_rows(rows)
             total_rows_written += written
             print(f"[market_history] {ticker}: {written} rows written.")
@@ -810,8 +700,6 @@ def update_market_history(tickers, use_live=True):
             ))
             continue
 
-        # Small delay between tickers to avoid Yahoo Finance rate limiting
-        # 1 second across 8 tickers adds 8 seconds total — acceptable
         time.sleep(1)
 
     print(f"[market_history] Complete. Total rows written: {total_rows_written}")
@@ -822,31 +710,8 @@ def update_market_history(tickers, use_live=True):
 # ─────────────────────────────────────────────────────────────
 
 def save_price_fixtures(price_data, fixture_path, capture=True):
-    """
-    Updates the prices block in a fixture JSON file with current
-    live price data.
-
-    Generic — works for any project that uses price fixtures.
-    Stock Monitor passes its normal_day.json path. HDB Analyser
-    will pass its own fixture path when it adopts this pattern.
-
-    Parameters:
-      price_data:    list of price dicts from get_current_prices()
-                     or equivalent fetch function
-      fixture_path:  full path to the fixture JSON file to update.
-                     Caller constructs this from their own config —
-                     shared/utils.py never constructs project paths.
-      capture:       True = update the file; False = skip silently.
-                     Caller passes config.CAPTURE_LIVE_DATA_FOR_FIXTURES
-                     or equivalent. Default True so the function is
-                     useful without a fixture system.
-
-    Preserves all existing keys in the fixture file — only the
-    prices block and _created date are replaced.
-    """
     from datetime import datetime
 
-    # Respect the capture flag — do nothing if False
     if not capture:
         print("[save_price_fixtures] capture=False — fixture not updated.")
         return
@@ -854,14 +719,10 @@ def save_price_fixtures(price_data, fixture_path, capture=True):
     fixture_path = Path(fixture_path)
 
     try:
-        # Read existing file first — only prices and _created are replaced,
-        # intelligence block and all metadata are preserved untouched
         if fixture_path.exists():
             with open(fixture_path, "r", encoding="utf-8-sig") as f:
                 existing = json.load(f)
         else:
-            # File missing — build minimal shell rather than hard stop
-            # because this is a write operation, not a read dependency
             print(format_warning(
                 "WARN", "shared/utils.py",
                 "save_price_fixtures()",
@@ -874,11 +735,9 @@ def save_price_fixtures(price_data, fixture_path, capture=True):
                 "_description": "Auto-generated fixture from live run.",
             }
 
-        # Replace only prices and update the created date
         existing["prices"]   = price_data
         existing["_created"] = datetime.now().strftime("%Y-%m-%d")
 
-        # Write back — utf-8 without BOM, indent=2 matches original format
         with open(fixture_path, "w", encoding="utf-8") as f:
             json.dump(existing, f, indent=2)
 
@@ -886,7 +745,6 @@ def save_price_fixtures(price_data, fixture_path, capture=True):
               f"with {len(price_data)} price records.")
 
     except Exception as e:
-        # Never crash the pipeline over a fixture write failure
         print(format_warning(
             "WARN", "shared/utils.py",
             "save_price_fixtures()",
@@ -900,40 +758,11 @@ def save_price_fixtures(price_data, fixture_path, capture=True):
 # ─────────────────────────────────────────────────────────────
 
 def send_email_alert(subject, body, env_path=None, project_tag="Monitor"):
-    """
-    Sends a plain text email alert via Outlook SMTP.
-
-    Generic — works for any project that needs email alerts.
-    Stock Monitor uses it for REDUCE/EXIT signals. HDB Analyser
-    will use it for price drops, opportunity matches, and pipeline
-    failures when it adopts this pattern.
-
-    Parameters:
-      subject:      email subject line (project tag prepended automatically)
-      body:         plain text email body
-      env_path:     full path to the .env file containing email credentials.
-                    Caller passes this from their own project directory —
-                    shared/utils.py never constructs project-specific paths.
-                    Falls back to os.getenv() if None, which works when
-                    load_dotenv() was already called by the pipeline.
-      project_tag:  prepended to subject as [project_tag] for inbox filtering.
-                    Default 'Monitor' — callers pass their project name.
-
-    Credentials expected in .env:
-      EMAIL_FROM, EMAIL_TO, EMAIL_PASSWORD, SMTP_SERVER, SMTP_PORT
-
-    Returns True if sent successfully, False if send failed.
-    Never crashes the pipeline — email failure is logged and
-    execution continues.
-    """
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     from dotenv import load_dotenv
 
-    # Load credentials from the caller's .env path if provided.
-    # If None, credentials are read from environment as already loaded
-    # by the pipeline's own load_dotenv() call at startup.
     if env_path:
         load_dotenv(dotenv_path=Path(env_path))
 
@@ -943,8 +772,6 @@ def send_email_alert(subject, body, env_path=None, project_tag="Monitor"):
     smtp_server    = os.getenv("SMTP_SERVER", "smtp-mail.outlook.com")
     smtp_port      = int(os.getenv("SMTP_PORT", "587"))
 
-    # Validate that all required credentials are present before
-    # attempting a connection — fail fast with a clear message
     if not all([email_from, email_to, email_password, smtp_server]):
         print(format_warning(
             "WARN", "shared/utils.py", "send_email_alert()",
@@ -955,24 +782,17 @@ def send_email_alert(subject, body, env_path=None, project_tag="Monitor"):
         return False
 
     try:
-        # Build the email message
-        # MIMEMultipart allows us to add both plain text and HTML later
         msg = MIMEMultipart()
         msg["From"]    = email_from
         msg["To"]      = email_to
         msg["Subject"] = f"[{project_tag}] {subject}"
 
-        # Attach the body as plain text
-        # UTF-8 ensures special characters like % and $ render correctly
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        # Connect to Outlook SMTP server
-        # SMTP + starttls uses port 587 (upgrades to encrypted mid-session)
-        # Outlook requires the starttls approach on port 587
         with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.ehlo()       # introduce client to server
-            server.starttls()   # upgrade to encrypted TLS
-            server.ehlo()       # re-identify after TLS upgrade
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
             server.login(email_from, email_password)
             server.sendmail(email_from, [email_to], msg.as_string())
 

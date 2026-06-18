@@ -425,6 +425,60 @@ def build_realistic_prompt():
               f"— falling back to synthetic large prompt.")
         return build_synthetic_prompt("large"), "large"
 
+def load_captured_prompt(call_type_prefix, run_id=None):
+    """
+    Loads a real captured prompt from llm_calls.prompt_text instead of
+    building synthetic content. This is the honest alternative to
+    build_synthetic_prompt() for xl and xxl sizes — real pipeline
+    content at real token weight, not a guess at what Day 20/21
+    content might look like.
+
+    call_type_prefix: matches call_type using LIKE — e.g. 'stage1_pragmatist'
+                       matches 'stage1_pragmatist' exactly (no wildcard needed
+                       since call_type doesn't include ticker for stage1 rows
+                       in llm_calls — only in the analysis table).
+    run_id:            specific run to pull from. None = most recent capture
+                       for this call_type_prefix.
+
+    Returns (prompt_text, actual_input_tokens) or (None, None) if no
+    matching row exists yet — caller must capture a live run first.
+    """
+    try:
+        with database.get_connection() as conn:
+            if run_id:
+                row = conn.execute(
+                    """
+                    SELECT prompt_text, input_tokens
+                    FROM llm_calls
+                    WHERE call_type = ? AND run_id = ?
+                      AND prompt_text IS NOT NULL
+                    ORDER BY input_tokens DESC
+                    LIMIT 1
+                    """,
+                    (call_type_prefix, run_id),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT prompt_text, input_tokens
+                    FROM llm_calls
+                    WHERE call_type = ?
+                      AND prompt_text IS NOT NULL
+                    ORDER BY input_tokens DESC
+                    LIMIT 1
+                    """,
+                    (call_type_prefix,),
+                ).fetchone()
+
+            if row is None:
+                return None, None
+
+            return row["prompt_text"], row["input_tokens"]
+
+    except Exception as e:
+        print(f"  [WARN] Failed to load captured prompt for "
+              f"'{call_type_prefix}' — {e}")
+        return None, None
 
 # ── Ollama helpers ─────────────────────────────────────────────
 
@@ -459,6 +513,32 @@ def call_model(model, prompt, max_tokens):
     Returns a dict with all fields needed for the benchmark row.
     Never crashes — catches all errors and returns an error result dict.
     """
+    # num_ctx must be set explicitly — Ollama defaults to a small context
+    # window (commonly 2048 tokens) regardless of model capability.
+    # Without this, prompts larger than the default are silently truncated
+    # and the model reasons on a fragment with no warning of any kind.
+    # This was discovered Day 19 — xxl benchmark on phi4-mini returned
+    # JSON=NO, Dir=NO, Halluc=YES because a 24,740-token prompt was cut
+    # to ~4,000 tokens before the model ever saw it.
+    #
+    # num_ctx covers INPUT + OUTPUT combined, not output alone. Estimated
+    # from prompt character length using config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE,
+    # capped at this specific model's real ceiling from
+    # config.OLLAMA_MODEL_MAX_CTX — never a flat guessed number.
+    estimated_input_tokens = len(prompt) // config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE
+    estimated_input_tokens += len(BENCHMARK_SYSTEM_PROMPT) // config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE
+
+    required_ctx = (
+        estimated_input_tokens + max_tokens + config.OLLAMA_NUM_CTX_SAFETY_MARGIN
+    )
+
+    model_ceiling = config.OLLAMA_MODEL_MAX_CTX.get(
+        model, config.OLLAMA_NUM_CTX_FALLBACK_MAX
+    )
+    required_ctx = min(
+        required_ctx, model_ceiling, config.OLLAMA_NUM_CTX_HARDWARE_CAP
+    )
+
     payload = {
         "model":   model,
         "messages": [
@@ -469,6 +549,7 @@ def call_model(model, prompt, max_tokens):
         "options": {
             "num_predict":  max_tokens,
             "temperature":  0.1,  # low temp for consistent structured output
+            "num_ctx":      required_ctx,
         },
     }
 
@@ -677,7 +758,7 @@ def print_results_table(results):
     # Find the fastest model that produces valid JSON on large prompts
     # Use largest prompt size tested as the recommendation baseline
     sizes_tested = [r["size"] for r in results]
-    size_priority = ["realistic", "large", "medium", "small"]
+    size_priority = ["xxl", "xl", "realistic", "large", "medium", "small"]
     baseline_size = next(
         (s for s in size_priority if s in sizes_tested), "small"
     )
@@ -763,9 +844,42 @@ def main():
             sizes = ["small", "medium", "large", "xl", "xxl"]
         else:
             sizes = [args.size]
-        prompts_to_run = [
-            (build_synthetic_prompt(s), s) for s in sizes
-        ]
+
+        prompts_to_run = []
+        for s in sizes:
+            if s == "xl":
+                # xl = real Stage 1 prompt, largest agent (pragmatist)
+                # from the most recent live capture run
+                prompt, actual_tokens = load_captured_prompt("stage1_pragmatist")
+                if prompt is None:
+                    print(f"  [WARN] No captured prompt found for "
+                          f"'stage1_pragmatist' — run a live pipeline "
+                          f"session first to populate llm_calls.prompt_text. "
+                          f"Falling back to synthetic xl.")
+                    prompts_to_run.append((build_synthetic_prompt("xl"), "xl"))
+                else:
+                    print(f"  [xl] Using captured stage1_pragmatist prompt "
+                          f"({actual_tokens} input tokens)")
+                    prompts_to_run.append((prompt, "xl"))
+
+            elif s == "xxl":
+                # xxl = real Stage 3 Meta-Agent prompt — the dominant
+                # cost driver and the size that matters most for the
+                # heavy tier sovereign routing decision
+                prompt, actual_tokens = load_captured_prompt("stage3_meta_agent")
+                if prompt is None:
+                    print(f"  [WARN] No captured prompt found for "
+                          f"'stage3_meta_agent' — run a live pipeline "
+                          f"session first to populate llm_calls.prompt_text. "
+                          f"Falling back to synthetic xxl.")
+                    prompts_to_run.append((build_synthetic_prompt("xxl"), "xxl"))
+                else:
+                    print(f"  [xxl] Using captured stage3_meta_agent prompt "
+                          f"({actual_tokens} input tokens)")
+                    prompts_to_run.append((prompt, "xxl"))
+
+            else:
+                prompts_to_run.append((build_synthetic_prompt(s), s))
 
     # ── Run benchmarks ─────────────────────────────────────────
     all_results = []
@@ -779,7 +893,7 @@ def main():
             call_num += 1
             print(
                 f"    [{call_num}/{total_calls}] "
-                f"{size_label} prompt (~{PROMPT_SIZES.get(size_label, '?')} tokens)..."
+                f"{size_label} prompt..."
             )
 
             result  = call_model(model, prompt, args.max_tokens)
@@ -815,12 +929,16 @@ def main():
                 "error":            result.get("error"),
             })
 
-            # Write to database
+            # Write to database — xl/xxl use real captured prompts even
+            # when args.mode is 'synthetic', so log the honest mode per-row
+            # rather than trusting the CLI flag blindly
+            actual_mode = "realistic" if size_label in ("xl", "xxl") else args.mode
+
             write_benchmark_result(
                 benchmark_run_id=benchmark_run_id,
                 model=model,
                 size_label=size_label,
-                mode=args.mode,
+                mode=actual_mode,
                 result=result,
                 quality=quality,
                 max_tokens=args.max_tokens,
