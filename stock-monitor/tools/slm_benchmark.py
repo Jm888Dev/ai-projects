@@ -507,7 +507,11 @@ def get_available_models():
         sys.exit(1)
 
 
-def call_model(model, prompt, max_tokens):
+def call_model(model, prompt, max_tokens, schema_dict=None):
+    # schema_dict: optional JSON Schema dict produced by a Pydantic model's
+    # .model_json_schema() method. When present, Ollama applies constrained
+    # decoding — the model physically cannot produce tokens that violate the
+    # schema. When None, the model runs prompt-only (existing behaviour).
     """
     Makes one inference call to Ollama and returns timing + token counts.
     Returns a dict with all fields needed for the benchmark row.
@@ -548,10 +552,18 @@ def call_model(model, prompt, max_tokens):
         "stream":  False,
         "options": {
             "num_predict":  max_tokens,
-            "temperature":  0.1,  # low temp for consistent structured output
+            "temperature":  0.1,
             "num_ctx":      required_ctx,
         },
     }
+
+    # If a schema was provided, add the format parameter to the payload.
+    # This activates Ollama's constrained decoding — the inference engine
+    # builds a finite state machine from the schema and masks invalid tokens
+    # at generation time. The model cannot produce output that violates the
+    # contract. Supported since Ollama 0.3.0 — we are on 0.30.8.
+    if schema_dict is not None:
+        payload["format"] = schema_dict
 
     start = time.time()
     try:
@@ -607,7 +619,11 @@ def call_model(model, prompt, max_tokens):
 
 # ── Quality assessment ─────────────────────────────────────────
 
-def assess_quality(text):
+def assess_quality(text, schema_dict=None):
+    # schema_dict: when provided, expected fields are derived from the schema
+    # itself rather than the hardcoded four-field prompt-only set.
+    # This prevents schema fields from being flagged as hallucinations —
+    # the hallucination check must know what fields are legitimate.
     """
     Assesses output quality on three dimensions:
 
@@ -648,8 +664,18 @@ def assess_quality(text):
     # Common hallucinations: BUY, SELL, NEUTRAL, STRONG_BUY, STRONG_SELL
     direction_hallucination = 1 if (direction and direction not in VALID_DIRECTIONS) else 0
 
-    # Hallucination check 2 — invented top-level fields not in schema
-    expected_fields   = {"direction", "confidence", "primary_argument", "key_assumption"}
+    # Hallucination check 2 — invented top-level fields not in schema.
+    # When schema-guided decoding is active, expected fields come from the
+    # schema contract itself. When prompt-only, use the hardcoded four-field
+    # set that matches the BENCHMARK_SYSTEM_PROMPT output instructions.
+    if schema_dict is not None:
+        # Extract field names from the JSON Schema properties dict.
+        # model_json_schema() produces {"properties": {"field": {...}, ...}}
+        expected_fields = set(schema_dict.get("properties", {}).keys())
+    else:
+        # Prompt-only mode — hardcoded four fields from BENCHMARK_SYSTEM_PROMPT
+        expected_fields = {"direction", "confidence", "primary_argument", "key_assumption"}
+
     actual_fields     = set(parsed.keys())
     invented_fields   = actual_fields - expected_fields
     field_hallucination = 1 if invented_fields else 0
@@ -666,7 +692,12 @@ def assess_quality(text):
 # ── Database write ─────────────────────────────────────────────
 
 def write_benchmark_result(benchmark_run_id, model, size_label,
-                           mode, result, quality, max_tokens):
+                           mode, result, quality, max_tokens,
+                           decode_mode="prompt_only"):
+    # decode_mode: 'prompt_only' (default) or 'schema_guided'.
+    # Records which decoding method was used for this benchmark row.
+    # Allows direct comparison between modes in the slm_benchmarks table
+    # without needing separate benchmark runs or separate tables.
     """
     Writes one benchmark result row to slm_benchmarks table.
     Non-blocking — never crashes the benchmark run on a write failure.
@@ -677,12 +708,12 @@ def write_benchmark_result(benchmark_run_id, model, size_label,
                 """
                 INSERT INTO slm_benchmarks (
                     benchmark_run_id, timestamp, model,
-                    prompt_size, prompt_mode,
+                    prompt_size, prompt_mode, decode_mode,
                     input_tokens, output_tokens,
                     duration_secs, tokens_per_sec, max_tokens,
                     json_valid, direction_valid, hallucination_flag,
                     raw_response
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     benchmark_run_id,
@@ -690,6 +721,7 @@ def write_benchmark_result(benchmark_run_id, model, size_label,
                     model,
                     size_label,
                     mode,
+                    decode_mode,          # 'prompt_only' or 'schema_guided'
                     result["input_tokens"],
                     result["output_tokens"],
                     result["duration_secs"],
@@ -698,7 +730,7 @@ def write_benchmark_result(benchmark_run_id, model, size_label,
                     quality.get("json_valid", 0),
                     quality.get("direction_valid", 0),
                     quality.get("hallucination_flag", 0),
-                    result["text"][:2000],  # truncate long responses
+                    result["text"][:2000],
                 ),
             )
     except Exception as e:
@@ -812,7 +844,51 @@ def main():
         nargs="+",
         help="Specific models to test (default: all pulled models)"
     )
+    parser.add_argument(
+        "--schema",
+        choices=["bull", "bear", "black_swan", "pragmatist", "contrarian", "meta_agent"],
+        default=None,
+        help=(
+            "Optional: activate schema-guided decoding using the named agent schema. "
+            "When set, Ollama constrains output to the Pydantic contract at token level. "
+            "When absent, runs prompt-only mode (existing behaviour). "
+            "Example: --schema bull"
+        )
+    )
     args = parser.parse_args()
+
+    # ── Schema loading ─────────────────────────────────────────
+    # Import the requested Pydantic schema and convert it to a JSON Schema
+    # dict using .model_json_schema(). This dict is what Ollama's format
+    # parameter expects — it describes the exact shape of valid output.
+    # Only imported when --schema is passed so the benchmark still runs
+    # without prompts/schemas.py in environments that don't have it.
+    schema_dict = None
+    decode_mode = "prompt_only"
+
+    if args.schema:
+        # Map CLI name to the matching Pydantic class
+        schema_map = {
+            "bull":        "BullOutput",
+            "bear":        "BearOutput",
+            "black_swan":  "BlackSwanOutput",
+            "pragmatist":  "PragmatistOutput",
+            "contrarian":  "ContrarianOutput",
+            "meta_agent":  "MetaAgentOutput",
+        }
+        class_name = schema_map[args.schema]
+
+        # Dynamic import — only load prompts.schemas when --schema is passed
+        import importlib
+        schemas_module = importlib.import_module("prompts.schemas")
+        schema_class   = getattr(schemas_module, class_name)
+
+        # Convert Pydantic model to JSON Schema dict for Ollama's format parameter
+        schema_dict = schema_class.model_json_schema()
+        decode_mode = "schema_guided"
+
+        print(f"  Schema-guided decoding: {class_name}")
+        print(f"  JSON Schema fields: {list(schema_dict.get('properties', {}).keys())}\n")
 
     # ── Setup ──────────────────────────────────────────────────
     database.initialise_db()
@@ -896,8 +972,8 @@ def main():
                 f"{size_label} prompt..."
             )
 
-            result  = call_model(model, prompt, args.max_tokens)
-            quality = assess_quality(result["text"]) if result["success"] else {
+            result  = call_model(model, prompt, args.max_tokens, schema_dict=schema_dict)
+            quality = assess_quality(result["text"], schema_dict=schema_dict) if result["success"] else {
                 "json_valid": 0, "direction_valid": 0, "hallucination_flag": 0
             }
 
@@ -942,6 +1018,7 @@ def main():
                 result=result,
                 quality=quality,
                 max_tokens=args.max_tokens,
+                decode_mode=decode_mode,
             )
 
         print()

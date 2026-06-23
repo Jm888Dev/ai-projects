@@ -329,6 +329,7 @@ CREATE TABLE IF NOT EXISTS slm_benchmarks (
     model               TEXT NOT NULL,
     prompt_size         TEXT NOT NULL,
     prompt_mode         TEXT NOT NULL,
+    decode_mode         TEXT NOT NULL DEFAULT 'prompt_only',
     input_tokens        INTEGER,
     output_tokens       INTEGER,
     duration_secs       REAL,

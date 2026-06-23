@@ -681,7 +681,7 @@ SLM_STAGE_MODELS = {
 # Sovereign principle: this is a localhost address — no data leaves
 # the machine. If this URL ever points outside localhost, reject it.
 OLLAMA_BASE_URL = "http://localhost:11434/api/chat"
-OLLAMA_TIMEOUT  = 600  # seconds — heavy models need up to 5 minutes per call
+OLLAMA_TIMEOUT = 3600  # raised from 600s — patience tests for heavy models at xxl prompt sizes
 
 # Context window ceilings per model — must not exceed what the model
 # actually supports. Source: `ollama show <model>` (no --modelfile flag),
