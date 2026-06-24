@@ -687,12 +687,15 @@ OLLAMA_TIMEOUT = 3600  # raised from 600s — patience tests for heavy models at
 # actually supports. Source: `ollama show <model>` (no --modelfile flag),
 # field "context length". Verified Day 19.
 OLLAMA_MODEL_MAX_CTX = {
-    "phi4-mini":         131072,
-    "gemma4:e4b":        131072,
-    "qwen3.6:35b-a3b":   262144,
-    "gemma4:26b":        262144,
+    "phi4-mini":                    131072,
+    "gemma4:e4b":                   131072,
+    "qwen3.6:35b-a3b":              262144,
+    "gemma4:26b":                   262144,
+    "deepseek-r1:14b":              32000,   # architectural 128K but degrades ~20K per benchmarks — capped Day 22
+    "magistral:latest":              40000,  # 128K architectural but degrades past 40K per Mistral docs — capped conservatively
+    "mistral-small3.2:latest":      131072,  # 128K ctx — added Day 22
+    "gpt-oss:20b":                  131072,  # 128K ctx — added Day 22
 }
-
 # Rough character-to-token estimate for sizing num_ctx before the call.
 # Ollama doesn't report input token count until AFTER the response
 # returns, so we estimate from prompt character length beforehand.
@@ -726,10 +729,14 @@ OLLAMA_NUM_CTX_HARDWARE_CAP = 32000
 # Ollama does not charge per token — these entries exist only to
 # make the pricing dict exhaustive and to document the zero-cost tier.
 MODEL_PRICING.update({
-    "phi4-mini":         {"input": 0.00, "output": 0.00},
-    "gemma4:e4b":        {"input": 0.00, "output": 0.00},
-    "qwen3.6:35b-a3b":   {"input": 0.00, "output": 0.00},
-    "gemma4:26b":        {"input": 0.00, "output": 0.00},
+    "phi4-mini":                {"input": 0.00, "output": 0.00},
+    "gemma4:e4b":               {"input": 0.00, "output": 0.00},
+    "qwen3.6:35b-a3b":          {"input": 0.00, "output": 0.00},
+    "gemma4:26b":               {"input": 0.00, "output": 0.00},
+    "deepseek-r1:14b":          {"input": 0.00, "output": 0.00},  # added Day 22
+    "magistral:latest":         {"input": 0.00, "output": 0.00},  # added Day 22
+    "mistral-small3.2:latest":  {"input": 0.00, "output": 0.00},  # added Day 22
+    "gpt-oss:20b":              {"input": 0.00, "output": 0.00},  # added Day 22
 })
 
 # ── SHADOW COST REFERENCE MODELS ───────────────────────────

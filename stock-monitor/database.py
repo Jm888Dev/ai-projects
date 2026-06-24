@@ -321,6 +321,13 @@ CREATE TABLE IF NOT EXISTS thesis_reviews (
 # direction_valid: 1 if direction field is ACCUMULATE/HOLD/REDUCE/EXIT
 # hallucination_flag: 1 if model invented fields not in schema or
 #                     returned direction outside valid values
+# hallucination_flag: 1 if model invented fields not in schema or
+#                     returned direction outside valid values
+# ticker_mismatch: 1 if the model reasoned about a different ticker than
+#                  the one requested (output ticker != EXPECTED_TICKER).
+#                  0 = matched, OR no ticker field to check, OR pre-Day-22
+#                  row written before the check existed. 0 means
+#                  "no mismatch recorded", NOT "verified correct".
 CREATE_SLM_BENCHMARKS_TABLE = """
 CREATE TABLE IF NOT EXISTS slm_benchmarks (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -338,6 +345,7 @@ CREATE TABLE IF NOT EXISTS slm_benchmarks (
     json_valid          INTEGER DEFAULT 0,
     direction_valid     INTEGER DEFAULT 0,
     hallucination_flag  INTEGER DEFAULT 0,
+    ticker_mismatch     INTEGER DEFAULT 0,
     raw_response        TEXT
 )
 """

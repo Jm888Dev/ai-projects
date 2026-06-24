@@ -40,6 +40,15 @@ OLLAMA_CHAT_URL = config.OLLAMA_BASE_URL
 # Valid direction values for the Stock Monitor pipeline
 VALID_DIRECTIONS = {"ACCUMULATE", "HOLD", "REDUCE", "EXIT"}
 
+# The single ticker every benchmark prompt is built around. All prompt
+# layers (_build_layer_1, chain summary, thesis) are hardcoded to this.
+# Injected into the system prompt so the model is explicitly grounded,
+# and checked against the model's output ticker in assess_quality() so
+# drift to another ticker (e.g. gemma4:e4b reasoning about G3B.SI on an
+# NVDA prompt) is flagged, not silently accepted. One source of truth —
+# injection and verification both read this, so they cannot disagree.
+EXPECTED_TICKER = "NVDA"
+
 # Prompt size labels — built from real data layers, not padding
 # Approximate token counts after assembly:
 #   small  ~300   — Layer 1 only (price + instruction)
@@ -50,14 +59,18 @@ VALID_DIRECTIONS = {"ACCUMULATE", "HOLD", "REDUCE", "EXIT"}
 PROMPT_SIZE_LABELS = ["small", "medium", "large", "xl", "xxl"]
 
 # System prompt used for all benchmark calls
-BENCHMARK_SYSTEM_PROMPT = """You are a Bull analyst for a stock monitoring pipeline.
+BENCHMARK_SYSTEM_PROMPT = f"""You are a Bull analyst for a stock monitoring pipeline.
+You are analysing exactly one ticker: {EXPECTED_TICKER}. Your entire analysis must
+be about {EXPECTED_TICKER} and no other ticker. Other tickers may appear in the data
+as context — do not switch your analysis to them.
 Analyse the provided data and return ONLY a JSON object with exactly these fields:
-{
+{{
+  "ticker": "{EXPECTED_TICKER}",
   "direction": "ACCUMULATE or HOLD or REDUCE or EXIT",
   "confidence": <integer 1-5>,
   "primary_argument": "<one sentence>",
   "key_assumption": "<one sentence>"
-}
+}}
 Return JSON only. No preamble, no explanation, no markdown."""
 
 # ── Synthetic feed headlines (Day 21 simulation) ───────────────
@@ -654,6 +667,9 @@ def assess_quality(text, schema_dict=None):
             "json_valid":        0,
             "direction_valid":   0,
             "hallucination_flag": 1,
+            "ticker_mismatch":   0,   # JSON didn't parse — failure already
+                                      # captured by json_valid/hallucination;
+                                      # no object to read a ticker from
         }
 
     direction = parsed.get("direction", "").upper().strip()
@@ -673,8 +689,12 @@ def assess_quality(text, schema_dict=None):
         # model_json_schema() produces {"properties": {"field": {...}, ...}}
         expected_fields = set(schema_dict.get("properties", {}).keys())
     else:
-        # Prompt-only mode — hardcoded four fields from BENCHMARK_SYSTEM_PROMPT
-        expected_fields = {"direction", "confidence", "primary_argument", "key_assumption"}
+        # Prompt-only mode — fields from BENCHMARK_SYSTEM_PROMPT.
+        # "ticker" added Day 22 — the system prompt now requires the model
+        # to emit which ticker it analysed, so it is an expected field, not
+        # an invented one. Without it here, the ticker field would be flagged
+        # as a hallucination in prompt-only mode.
+        expected_fields = {"ticker", "direction", "confidence", "primary_argument", "key_assumption"}
 
     actual_fields     = set(parsed.keys())
     invented_fields   = actual_fields - expected_fields
@@ -682,10 +702,23 @@ def assess_quality(text, schema_dict=None):
 
     hallucination_flag = 1 if (direction_hallucination or field_hallucination) else 0
 
+    # Ticker grounding check — did the model analyse the ticker we asked about?
+    # Reads EXPECTED_TICKER (same constant injected into the system prompt in
+    # Fix 2, so instruction and check can never disagree).
+    # The system prompt REQUIRES a ticker field. So on parseable output:
+    #   - ticker present and != EXPECTED_TICKER  → mismatch (drifted to another ticker)
+    #   - ticker absent entirely                 → mismatch (ignored a direct instruction)
+    #   - ticker present and == EXPECTED_TICKER  → match
+    # Absence is a failure of instruction-following, not a neutral "no opinion",
+    # so it is flagged, not excused.
+    output_ticker = parsed.get("ticker", "").upper().strip()
+    ticker_mismatch = 0 if output_ticker == EXPECTED_TICKER else 1
+
     return {
         "json_valid":         1,
         "direction_valid":    direction_valid,
         "hallucination_flag": hallucination_flag,
+        "ticker_mismatch":    ticker_mismatch,
     }
 
 
@@ -712,8 +745,9 @@ def write_benchmark_result(benchmark_run_id, model, size_label,
                     input_tokens, output_tokens,
                     duration_secs, tokens_per_sec, max_tokens,
                     json_valid, direction_valid, hallucination_flag,
+                    ticker_mismatch,
                     raw_response
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     benchmark_run_id,
@@ -730,7 +764,8 @@ def write_benchmark_result(benchmark_run_id, model, size_label,
                     quality.get("json_valid", 0),
                     quality.get("direction_valid", 0),
                     quality.get("hallucination_flag", 0),
-                    result["text"][:2000],
+                    quality.get("ticker_mismatch", 0),
+                    result["text"][:5000],
                 ),
             )
     except Exception as e:
@@ -754,9 +789,9 @@ def print_results_table(results):
     print("=" * 90)
     print(
         f"  {'Model':<22} {'Size':<8} {'In':>6} {'Out':>6} "
-        f"{'Secs':>7} {'Tok/s':>6} {'JSON':>5} {'Dir':>5} {'Halluc':>7}"
+        f"{'Secs':>7} {'Tok/s':>6} {'JSON':>5} {'Dir':>5} {'Halluc':>7} {'Mismatch':>9}"
     )
-    print(f"  {'-'*22} {'-'*8} {'-'*6} {'-'*6} {'-'*7} {'-'*6} {'-'*5} {'-'*5} {'-'*7}")
+    print(f"  {'-'*22} {'-'*8} {'-'*6} {'-'*6} {'-'*7} {'-'*6} {'-'*5} {'-'*5} {'-'*7} {'-'*9}")
 
     size_order = {"small": 0, "medium": 1, "large": 2, "realistic": 3}
     sorted_results = sorted(
@@ -772,7 +807,8 @@ def print_results_table(results):
             f"{r['duration_secs']:>7.1f} {r['tokens_per_sec']:>6.1f} "
             f"{'YES' if r['json_valid'] else 'NO':>5} "
             f"{'YES' if r['direction_valid'] else 'NO':>5} "
-            f"{'YES' if r['hallucination_flag'] else 'NO':>7}"
+            f"{'YES' if r['hallucination_flag'] else 'NO':>7} "
+            f"{'YES' if r.get('ticker_mismatch') else 'NO':>9}"
         )
         if r.get("error"):
             print(f"    ERROR: {r['error']}")
@@ -974,7 +1010,8 @@ def main():
 
             result  = call_model(model, prompt, args.max_tokens, schema_dict=schema_dict)
             quality = assess_quality(result["text"], schema_dict=schema_dict) if result["success"] else {
-                "json_valid": 0, "direction_valid": 0, "hallucination_flag": 0
+                "json_valid": 0, "direction_valid": 0, "hallucination_flag": 0,
+                "ticker_mismatch": 0
             }
 
             # Status line
@@ -1002,6 +1039,7 @@ def main():
                 "json_valid":       quality.get("json_valid", 0),
                 "direction_valid":  quality.get("direction_valid", 0),
                 "hallucination_flag": quality.get("hallucination_flag", 0),
+                "ticker_mismatch":  quality.get("ticker_mismatch", 0),
                 "error":            result.get("error"),
             })
 
