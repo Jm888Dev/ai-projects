@@ -669,11 +669,122 @@ SLM_HEAVY_MODEL_STAGE3 = "gemma4:26b" # heavy tier Stage 3 — sovereign Meta-Ag
 # and what would need to change (faster hardware, a different model, a
 # longer accepted timeout) before trying again.
 
+# SLM_STAGE_MODELS — confirmed routing decision, Day 24
+# Assigns each pipeline stage to its Ollama model tag, decode mode,
+# and token budget. Data assigned — never predicted. Based on full
+# benchmark grid Days 21-24 across 8 models, 4 sizes, 2 decode modes,
+# and 3 schemas (BullOutput, ContrarianOutput, prompt-only).
+#
+# Schema-guided production wiring in _call_ollama() is queue item 5 —
+# this config is ready; production wiring is the next build step.
+#
+# EXCLUDED MODELS AND REASONS
+# ────────────────────────────
+# magistral:latest      — schema constraint never engages. Produces identical
+#                         4-field prompt-only JSON regardless of --schema flag.
+#                         Retired entirely.
+# gemma4:26b            — FSM repetition collapse at small/medium schema-guided.
+#                         Partially contaminated at xl 2400. Only clean at xxl
+#                         prompt-only. Not viable for any agent stage at xl.
+# deepseek-r1:14b       — Schema-compliant but analytically thin at Stage 2.
+#                         ContrarianOutput restated the Bear case rather than
+#                         auditing the committee consensus. A Contrarian that
+#                         produces Bear-equivalent output has failed its mandate
+#                         regardless of schema compliance. Not needed at Stage 1
+#                         given gpt-oss:20b speed advantage.
+# mistral-small3.2      — Thinnest content among schema-capable models at xl.
+#                         Adequate syntax, inadequate reasoning depth for any
+#                         agent stage where quality drives downstream decisions.
+# phi4-mini             — Content drift at xxl schema: ticker field correct but
+#                         reasoning body discussed wrong instrument throughout.
+#                         Disqualified from all agent stages. Preprocessing only.
+# gemma4:e4b            — Schema degrades at xl, root cause unresolved. Excluded
+#                         until further investigation.
 SLM_STAGE_MODELS = {
-    "stage1":     "fast",   # phi4-mini — 28 calls/run, speed critical
-    "stage2":     "fast",   # gemma4:e4b — reasoning depth, one call/ticker
-    "stage3":     "heavy",  # heavy model — Meta-Agent, most critical call
-    "translator": "fast",   # phi4-mini — plain English, low complexity
+
+    # ── STAGE 1 — BullOutput / BearOutput / BlackSwanOutput / PragmatistOutput
+    # Schema-guided, xl prompt (~4,559 input tokens captured Day 19).
+    # Four persona calls per ticker. Quality matters here because Stage 1
+    # outputs are the raw material the Contrarian and Meta-Agent reason over.
+    # Thin Stage 1 output propagates as thin input to every downstream stage.
+    "stage1": {
+        # qwen3.6 selected: richest schema-guided reasoning in the full benchmark
+        # dataset. reasoning_trace populates spontaneously at xl 2400 — model
+        # acknowledges counter-thesis before committing to direction. Evidence →
+        # reason → conclude field ordering working as designed. Minimum 2400 tokens
+        # required for schema closure at xl — 1800 hits ceiling (Day 23 confirmed).
+        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 2400},
+
+        # gpt-oss:20b selected: speed leader across all sizes and modes. Clean schema
+        # closure at xl 1800 tokens. Content shallower than qwen3.6 but adequate for
+        # Stage 1 where the Contrarian's epistemic audit will challenge whatever is
+        # produced. Used when qwen3.6 is unavailable or times out.
+        "fallback": {"model": "gpt-oss:20b",      "mode": "schema_guided", "max_tokens": 1800},
+    },
+
+    # ── STAGE 2 — ContrarianOutput
+    # Schema-guided, xl prompt + real Stage 1 outputs appended (~10,000+ tokens).
+    # One call per ticker after Stage 1 completes. This is the epistemic audit
+    # layer — the Contrarian must identify hidden consensus and shared blind spots
+    # across four adversarial agents. Reasoning quality here directly shapes the
+    # Arbitrator's pre-weighed record and the Meta-Agent's final decision.
+    # Thin or redundant output at Stage 2 breaks the pipeline's ability to
+    # challenge groupthink. Token budget higher than Stage 1: ContrarianOutput
+    # has 5 interdependent prose fields vs Stage 1's 4 independent fields.
+    "stage2": {
+        # qwen3.6 selected: only model that produced genuinely non-obvious insight
+        # in the ContrarianOutput benchmark. Identified sovereign wealth fund
+        # procurement and export-license allocation mechanics as the real demand
+        # driver — a structural reframe the Stage 1 agents missed entirely.
+        # Hidden consensus, shared blind spot, and strongest challenge were
+        # logically coherent across fields with no semantic drift. deepseek-r1:14b
+        # and gpt-oss:20b both produced shallower audits closer to Bear restatements.
+        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 3600},
+
+        # gpt-oss:20b selected: functionally adequate ContrarianOutput — correctly
+        # identified CapEx linchpin consensus and energy cost risk angle. Shallower
+        # than qwen3.6 but structurally sound. Preferred over deepseek-r1:14b which
+        # produced Bear-equivalent output rather than a genuine epistemic audit.
+        # Used when qwen3.6 is unavailable.
+        "fallback": {"model": "gpt-oss:20b",      "mode": "schema_guided", "max_tokens": 3600},
+    },
+
+    # ── STAGE 3 — MetaAgentOutput
+    # Schema-guided, xxl prompt (~24,740 input tokens captured Day 19).
+    # One call per session across all tickers — the authoritative portfolio
+    # decision. MetaAgentOutput is the most structurally complex schema:
+    # Dict[str, TickerDecision] with 3 kill triggers per ticker across 8 tickers.
+    # Estimated schema closure floor 4,000-6,000 tokens. Budget set at 6,000 —
+    # confirmed viable Day 23. Speed matters more at Stage 3 than Stage 1/2:
+    # it runs once but on the largest prompt in the pipeline.
+    "stage3": {
+        # gpt-oss:20b selected: 923s at xxl schema-guided (~15 min) versus
+        # qwen3.6's ~1005s. Consistent speed advantage across all sizes and modes.
+        # Stage 3 runs once per session — time difference compounds across daily
+        # runs. Schema closure clean at xxl 6000. Slight content shallowness vs
+        # qwen3.6 is acceptable at Stage 3 because the Meta-Agent is synthesising
+        # pre-reasoned agent outputs, not generating primary analysis. The reasoning
+        # work is done upstream — Stage 3 renders judgment from it.
+        "primary":  {"model": "gpt-oss:20b",      "mode": "schema_guided", "max_tokens": 6000},
+
+        # qwen3.6 selected: viable at xxl 6000, slightly slower (~1005s vs 923s).
+        # Richer output if runtime is acceptable. Used when gpt-oss:20b is unavailable.
+        "fallback": {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 6000},
+    },
+
+    # ── PREPROCESSING — short structured tasks only
+    # Prompt-only. Used for summarisation, classification, and other short
+    # structured tasks that do not require schema-guided decoding or deep
+    # reasoning. phi4-mini is the fastest model in the benchmark at
+    # small/medium sizes. Content drift at xxl disqualifies it from all
+    # agent stages — preprocessing tasks are short by definition so the
+    # drift failure mode does not apply here.
+    "preprocessing": {
+        "primary":  {"model": "phi4-mini", "mode": "prompt_only", "max_tokens": 800},
+        # No fallback — preprocessing tasks are non-critical and can be
+        # skipped or retried without pipeline impact.
+        "fallback": None,
+    },
 }
 
 # ── OLLAMA CONNECTION ───────────────────────────────────────

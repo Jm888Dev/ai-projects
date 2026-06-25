@@ -33,6 +33,30 @@ sys.path.insert(0, str(_PROJECT_DIR))
 import config
 import database
 
+# Import production system prompts — single source of truth for agent behaviour.
+# Benchmark must use the same prompts as production so routing decisions
+# reflect real pipeline performance, not benchmark-specific prompt quality.
+from prompts.analyst_persona import (
+    STOCK_BULL_SYSTEM_PROMPT,
+    STOCK_BEAR_SYSTEM_PROMPT,
+    STOCK_BLACK_SWAN_SYSTEM_PROMPT,
+    STOCK_PRAGMATIST_SYSTEM_PROMPT,
+    STOCK_CONTRARIAN_SYSTEM_PROMPT,
+    STOCK_META_AGENT_SYSTEM_PROMPT,
+)
+
+# Maps each schema name to its production system prompt.
+# Selected in main() based on --schema flag.
+# Prompt-only runs (no --schema) fall back to BENCHMARK_SYSTEM_PROMPT.
+SCHEMA_SYSTEM_PROMPTS = {
+    "bull":        STOCK_BULL_SYSTEM_PROMPT,
+    "bear":        STOCK_BEAR_SYSTEM_PROMPT,
+    "black_swan":  STOCK_BLACK_SWAN_SYSTEM_PROMPT,
+    "pragmatist":  STOCK_PRAGMATIST_SYSTEM_PROMPT,
+    "contrarian":  STOCK_CONTRARIAN_SYSTEM_PROMPT,
+    "meta_agent":  STOCK_META_AGENT_SYSTEM_PROMPT,
+}
+
 # ── Constants ─────────────────────────────────────────────────
 OLLAMA_TAGS_URL = "http://localhost:11434/api/tags"
 OLLAMA_CHAT_URL = config.OLLAMA_BASE_URL
@@ -493,6 +517,91 @@ def load_captured_prompt(call_type_prefix, run_id=None):
               f"'{call_type_prefix}' — {e}")
         return None, None
 
+
+def load_stage1_outputs(ticker="NVDA", run_id=None):
+    """
+    Loads real Stage 1 agent outputs from the analysis table for use as
+    Contrarian benchmark input. The Contrarian's production system prompt
+    expects four Stage 1 outputs to audit — without them, the model has
+    nothing to find consensus in and collapses to generic output.
+
+    Using real captured outputs rather than synthetic stubs ensures the
+    Contrarian benchmark reflects actual pipeline conditions — including
+    the real verbosity, structure, and quality of Stage 1 agents.
+
+    ticker:  which ticker's Stage 1 outputs to load (default: NVDA —
+             matches EXPECTED_TICKER so the Contrarian audits the same
+             ticker the benchmark is grounding everything else in)
+    run_id:  specific run to pull from. None = most recent run that has
+             all four personas for this ticker.
+
+    Returns a formatted string block ready to append to the prompt,
+    or None if no complete Stage 1 set exists in the database.
+    """
+    personas = ["bull", "bear", "black_swan", "pragmatist"]
+
+    try:
+        with database.get_connection() as conn:
+            if run_id:
+                # Pull from specific run
+                rows = conn.execute(
+                    """
+                    SELECT analysis_type, output
+                    FROM analysis
+                    WHERE ticker = ?
+                      AND analysis_type IN ('bull','bear','black_swan','pragmatist')
+                      AND run_id = ?
+                    ORDER BY analysis_type
+                    """,
+                    (ticker, run_id),
+                ).fetchall()
+            else:
+                # Pull from most recent run that has all four personas
+                # Subquery finds the latest run_id with a complete set
+                rows = conn.execute(
+                    """
+                    SELECT analysis_type, output
+                    FROM analysis
+                    WHERE ticker = ?
+                      AND analysis_type IN ('bull','bear','black_swan','pragmatist')
+                      AND run_id = (
+                          SELECT run_id
+                          FROM analysis
+                          WHERE ticker = ?
+                            AND analysis_type IN ('bull','bear','black_swan','pragmatist')
+                          GROUP BY run_id
+                          HAVING COUNT(DISTINCT analysis_type) = 4
+                          ORDER BY run_id DESC
+                          LIMIT 1
+                      )
+                    ORDER BY analysis_type
+                    """,
+                    (ticker, ticker),
+                ).fetchall()
+
+        if not rows or len(rows) < 4:
+            print(f"  [WARN] Incomplete Stage 1 outputs for {ticker} "
+                  f"— found {len(rows) if rows else 0} of 4 personas. "
+                  f"Run a live pipeline session first to populate the analysis table.")
+            return None
+
+        # Assemble into the format the Contrarian system prompt expects
+        block = f"\nSTAGE 1 AGENT OUTPUTS — {ticker}\n"
+        block += f"(You are auditing the four Stage 1 outputs below. All outputs are for {ticker}. "
+        block += f"Your ticker field must be {ticker}. Do not switch to any other ticker.)\n\n"
+
+        for row in rows:
+            persona_label = row["analysis_type"].upper().replace("_", " ")
+            block += f"{persona_label} OUTPUT:\n"
+            block += row["output"]
+            block += "\n\n"
+
+        return block
+
+    except Exception as e:
+        print(f"  [WARN] Failed to load Stage 1 outputs for {ticker}: {e}")
+        return None
+    
 # ── Ollama helpers ─────────────────────────────────────────────
 
 def get_available_models():
@@ -520,7 +629,11 @@ def get_available_models():
         sys.exit(1)
 
 
-def call_model(model, prompt, max_tokens, schema_dict=None):
+def call_model(model, prompt, max_tokens, schema_dict=None, system_prompt=None):
+    # system_prompt: agent-appropriate instruction for this schema.
+    # When None, falls back to BENCHMARK_SYSTEM_PROMPT (Bull prompt-only default).
+    if system_prompt is None:
+        system_prompt = BENCHMARK_SYSTEM_PROMPT
     # schema_dict: optional JSON Schema dict produced by a Pydantic model's
     # .model_json_schema() method. When present, Ollama applies constrained
     # decoding — the model physically cannot produce tokens that violate the
@@ -543,7 +656,7 @@ def call_model(model, prompt, max_tokens, schema_dict=None):
     # capped at this specific model's real ceiling from
     # config.OLLAMA_MODEL_MAX_CTX — never a flat guessed number.
     estimated_input_tokens = len(prompt) // config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE
-    estimated_input_tokens += len(BENCHMARK_SYSTEM_PROMPT) // config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE
+    estimated_input_tokens += len(system_prompt) // config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE
 
     required_ctx = (
         estimated_input_tokens + max_tokens + config.OLLAMA_NUM_CTX_SAFETY_MARGIN
@@ -559,7 +672,7 @@ def call_model(model, prompt, max_tokens, schema_dict=None):
     payload = {
         "model":   model,
         "messages": [
-            {"role": "system", "content": BENCHMARK_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user",   "content": prompt},
         ],
         "stream":  False,
@@ -925,7 +1038,10 @@ def main():
 
         print(f"  Schema-guided decoding: {class_name}")
         print(f"  JSON Schema fields: {list(schema_dict.get('properties', {}).keys())}\n")
-
+        
+    # Select system prompt matching the schema being tested.
+    # Falls back to BENCHMARK_SYSTEM_PROMPT for prompt-only runs.
+    active_system_prompt = SCHEMA_SYSTEM_PROMPTS.get(args.schema, BENCHMARK_SYSTEM_PROMPT) if args.schema else BENCHMARK_SYSTEM_PROMPT
     # ── Setup ──────────────────────────────────────────────────
     database.initialise_db()
     benchmark_run_id = f"bench_{datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}"
@@ -972,6 +1088,12 @@ def main():
                 else:
                     print(f"  [xl] Using captured stage1_pragmatist prompt "
                           f"({actual_tokens} input tokens)")
+                    # Contrarian benchmark needs real Stage 1 outputs appended —
+                    # the production system prompt expects four agent outputs to audit
+                    if args.schema == "contrarian":
+                        stage1_block = load_stage1_outputs(ticker=EXPECTED_TICKER)
+                        if stage1_block:
+                            prompt += stage1_block
                     prompts_to_run.append((prompt, "xl"))
 
             elif s == "xxl":
@@ -1008,7 +1130,7 @@ def main():
                 f"{size_label} prompt..."
             )
 
-            result  = call_model(model, prompt, args.max_tokens, schema_dict=schema_dict)
+            result  = call_model(model, prompt, args.max_tokens, schema_dict=schema_dict, system_prompt=active_system_prompt)
             quality = assess_quality(result["text"], schema_dict=schema_dict) if result["success"] else {
                 "json_valid": 0, "direction_valid": 0, "hallucination_flag": 0,
                 "ticker_mismatch": 0
