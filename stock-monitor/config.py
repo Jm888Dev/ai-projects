@@ -803,9 +803,11 @@ OLLAMA_MODEL_MAX_CTX = {
     "qwen3.6:35b-a3b":              262144,
     "gemma4:26b":                   262144,
     "deepseek-r1:14b":              32000,   # architectural 128K but degrades ~20K per benchmarks — capped Day 22
-    "magistral:latest":              40000,  # 128K architectural but degrades past 40K per Mistral docs — capped conservatively
+    "magistral:latest":             40000,  # 128K architectural but degrades past 40K per Mistral docs — capped conservatively
     "mistral-small3.2:latest":      131072,  # 128K ctx — added Day 22
     "gpt-oss:20b":                  131072,  # 128K ctx — added Day 22
+    "granite4.1:30b":               32000,   # Architectural 131K; reliable to 32K on consumer hardware
+    "mistral-nemo:12b":             32000, # Advertised 128K; practical ceiling 32K per community benchmarks
 }
 # Rough character-to-token estimate for sizing num_ctx before the call.
 # Ollama doesn't report input token count until AFTER the response

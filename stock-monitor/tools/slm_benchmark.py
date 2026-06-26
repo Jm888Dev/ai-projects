@@ -586,9 +586,9 @@ def load_stage1_outputs(ticker="NVDA", run_id=None):
             return None
 
         # Assemble into the format the Contrarian system prompt expects
-        block = f"\nSTAGE 1 AGENT OUTPUTS — {ticker}\n"
-        block += f"(You are auditing the four Stage 1 outputs below. All outputs are for {ticker}. "
-        block += f"Your ticker field must be {ticker}. Do not switch to any other ticker.)\n\n"
+        block = f"\nSTAGE 1 AGENT OUTPUTS — TARGET TICKER: {ticker}\n"
+        block += f"GROUNDING: You are auditing the Stage 1 outputs below for {ticker} ONLY.\n"
+        block += f"Your ticker field must be {ticker}. Other tickers appear as portfolio context — do not switch your analysis to them.\n\n"
 
         for row in rows:
             persona_label = row["analysis_type"].upper().replace("_", " ")
