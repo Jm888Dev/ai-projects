@@ -370,48 +370,56 @@ def build_synthetic_prompt(size_label):
         return _build_layer_1()
 
     elif size_label == "medium":
+        # TOP: price + thesis. MIDDLE: chain + portfolio (accepted loss).
+        # No historical or intelligence at medium — not enough layers to matter.
         return (
-            _build_layer_1()
-            + _build_layer_2()
-            + _build_layer_3()
-            + _build_layer_4()
+            _build_layer_1()          # TOP — price data
+            + _build_layer_2()        # TOP — thesis
+            + _build_layer_3()        # MIDDLE — chain summary
+            + _build_layer_4()        # MIDDLE — portfolio relationships
         )
 
     elif size_label == "large":
+        # TOP: price + thesis. MIDDLE: chain + portfolio.
+        # BOTTOM: historical + intelligence.
         return (
-            _build_layer_1()
-            + _build_layer_2()
-            + _build_layer_3()
-            + _build_layer_4()
-            + _build_layer_5()
-            + _build_layer_6()
+            _build_layer_1()          # TOP — price data
+            + _build_layer_2()        # TOP — thesis
+            + _build_layer_3()        # MIDDLE — chain summary (accepted loss)
+            + _build_layer_4()        # MIDDLE — portfolio relationships (accepted loss)
+            + _build_layer_5()        # BOTTOM — historical anchors
+            + _build_layer_6()        # BOTTOM — intelligence context
         )
 
     elif size_label == "xl":
         # Layers 1-6 + RSS feed headlines
-        # Simulates Day 21 state when feeds are ingested
+        # Layer order matches build_data_package() production structure — Day 24.
+        # TOP: price + thesis. MIDDLE: chain + portfolio (accepted attention loss).
+        # BOTTOM: historical + intelligence + feeds (immediately above output marker).
         return (
-            _build_layer_1()
-            + _build_layer_2()
-            + _build_layer_3()
-            + _build_layer_4()
-            + _build_layer_5()
-            + _build_layer_6()
-            + SYNTHETIC_FEED_HEADLINES
+            _build_layer_1()          # TOP — price data
+            + _build_layer_2()        # TOP — thesis
+            + _build_layer_3()        # MIDDLE — chain summary (accepted loss)
+            + _build_layer_4()        # MIDDLE — portfolio relationships (accepted loss)
+            + _build_layer_5()        # BOTTOM — historical anchors
+            + _build_layer_6()        # BOTTOM — intelligence context
+            + SYNTHETIC_FEED_HEADLINES  # BOTTOM — feeds, immediately above output
         )
 
     elif size_label == "xxl":
         # Layers 1-6 + feeds + RAG chunks
-        # Simulates Day 20+21 state when both RAG and feeds are live
+        # Same ordering as xl. RAG chunks appended last — they are the most
+        # targeted retrieved content and benefit most from bottom-of-prompt
+        # attention weighting.
         return (
-            _build_layer_1()
-            + _build_layer_2()
-            + _build_layer_3()
-            + _build_layer_4()
-            + _build_layer_5()
-            + _build_layer_6()
-            + SYNTHETIC_FEED_HEADLINES
-            + SYNTHETIC_RAG_CHUNKS
+            _build_layer_1()          # TOP — price data
+            + _build_layer_2()        # TOP — thesis
+            + _build_layer_3()        # MIDDLE — chain summary (accepted loss)
+            + _build_layer_4()        # MIDDLE — portfolio relationships (accepted loss)
+            + _build_layer_5()        # BOTTOM — historical anchors
+            + _build_layer_6()        # BOTTOM — intelligence context
+            + SYNTHETIC_FEED_HEADLINES  # BOTTOM — feeds
+            + SYNTHETIC_RAG_CHUNKS    # BOTTOM — RAG chunks, last and highest attention
         )
 
     else:

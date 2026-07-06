@@ -1075,17 +1075,30 @@ Sentiment:
     # No model call here — plain text only
     feed_context = feeds.build_feed_injection(ticker)
 
+    # Layer order follows attention priority — time-sensitive and ticker-specific
+    # content at both ends; slowly-changing background context in the middle
+    # where underweighting is an acceptable loss.
+    #
+    # TOP (highest attention): price data and thesis — what happened today
+    # and the structural framework the agent reasons from.
+    # MIDDLE (accepted loss): chain summary and portfolio relationships —
+    # background cross-ticker context that changes slowly. If the attention
+    # mechanism underweights these, the agent still has the core signal.
+    # BOTTOM (high attention): historical anchors, live intelligence, kill
+    # triggers, and feed content — the statistical and signal layer that
+    # distinguishes today from yesterday, positioned immediately above
+    # where the model generates output.
     layers = [
-        price_block,
-        thesis_block,
-        chain_block,
-        portfolio_block,
-        hist_block,
-        intel_block,
-        trigger_block,
+        price_block,       # TOP — live price, volume, VIX: most time-sensitive
+        thesis_block,      # TOP — structural role and thesis: reasoning framework
+        chain_block,       # MIDDLE — cross-ticker context: accepted attention loss
+        portfolio_block,   # MIDDLE — causal chain and relationships: background structure
+        hist_block,        # BOTTOM — statistical anchors: Pragmatist depends on this
+        intel_block,       # BOTTOM — macro, geo, AI, regulatory signals: live intelligence
+        trigger_block,     # BOTTOM — pre-committed kill conditions: must not be missed
     ]
     if feed_context:
-        layers.append(feed_context)
+        layers.append(feed_context)  # BOTTOM — live feeds: immediately above output marker
 
     return "\n\n".join(layers)
 
