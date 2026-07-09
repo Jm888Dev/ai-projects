@@ -1,16 +1,14 @@
-```json
 {
   "persona": "bear",
   "ticker": "LITE",
   "direction": "REDUCE",
-  "confidence": 3,
-  "primary_argument": "LITE is a downstream bet on a chain (NVDA→TSM→LITE) that shows no acceleration signals while the stock has already rallied 16.49% in 5 days into a position 6.99% below its 10-day high, creating a momentum-driven entry point with no fresh catalyst to justify further upside.",
-  "supporting_evidence": "Volume is 0.82x 30-day average despite a +16.49% 5-day rally, indicating weak conviction on the move and potential exhaustion; the entire upstream chain (NVDA +0.24%, TSM +0.15%, AVGO -0.22%) shows anemic single-digit moves today while LITE +0.55% outpaces them, suggesting LITE is decoupling from fundamental chain health rather than leading it; no new AI research announcements, hyperscaler CapEx updates, or optical interconnect adoption signals have emerged this week to justify the 16.49% 5-day surge.",
-  "key_assumption": "The bull case assumes the copper-to-light transition is an inevitable, imminent infrastructure upgrade that will drive LITE revenue acceleration. The bear case argues this transition is real but multi-year, already partially priced into a frontier-bet valuation, and most critically—LITE's actual revenue depends on NVDA cluster density announcements and TSMC CoWoS capacity allocation, neither of which have moved this week. The bull is buying momentum into a thesis that has no new confirming data.",
-  "regime_sensitivity": "This bear call strengthens in a high_vix crisis regime. In normal VIX (16.15 today), momentum-driven frontier bets can persist on narrative alone. A VIX spike to 22+ would expose the lack of fundamental catalyst and force position-sizing discipline. In low_vix regimes, LITE's frontier-bet status makes it vulnerable to rapid repricing if the chain shows any stress—a single NVDA miss or TSM guidance cut would cascade downstream with velocity.",
+  "confidence": 4,
+  "primary_argument": "LITE is exhibiting a structural liquidity vacuum with critically low volume and a confirmed short-term downtrend, signaling that the market has not yet priced in the optical interconnect adoption timeline as bullish thesis proponents claim.",
+  "supporting_evidence": "Price sits at position 0.05 of its recent range (the absolute low) and is down 17.97% from its 10-day high of $861.97, confirming a structural down_short_term trend; volume is trading at just 0.44x the 30-day average (2,573,656 shares), indicating a complete absence of institutional accumulation despite the +2.51% daily gain; upstream demand anchors NVDA (+4.20%) and AVGO (+5.66%) are rallying on normal volume while LITE lags in both price appreciation and participation, exposing severe downstream thesis divergence.",
+  "key_assumption": "The bull case assumes the copper-to-light transition is an imminent, linear inflection point that will force immediate, massive order flow into discrete laser optics as NVDA/TSM ramp production, ignoring the reality of phased hyperscaler CapEx deployment, potential delays in optical transceiver adoption timelines, and the market's current skepticism toward LITE's ability to capture demand before silicon photonics or co-packaged optics scale.",
+  "regime_sensitivity": "Strengthens significantly in a high_vix crisis regime — LITE's small-cap frontier status, already evidenced by its 0.44x volume liquidity vacuum, makes it highly vulnerable to rapid deleveraging, duration compression, and first-sell pressure when risk appetite collapses.",
   "watch_items": [
-    "NVDA or TSM earnings guidance miss or capacity/demand revision downward — this is the thesis kill switch; if either reports weakness, LITE loses its only fundamental anchor and the 16.49% rally reverses within 2 sessions",
-    "LITE earnings call reveals hyperscaler customer concentration >60% or guidance flat/down YoY for optical interconnect orders — this would signal the transition is slower than priced and the stock is trading on hope rather than order flow"
+    "LITE fails to reclaim the $725 resistance level on daily volume exceeding the 30-day average within the next earnings cycle, confirming sustained institutional distribution.",
+    "NVDA or major hyperscaler CapEx guidance explicitly reduces optical transceiver procurement targets or shifts architecture toward co-packaged optics (CPO), directly invalidating the near-term demand thesis."
   ]
 }
-```

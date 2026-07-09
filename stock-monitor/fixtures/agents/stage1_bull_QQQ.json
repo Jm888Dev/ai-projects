@@ -1,16 +1,14 @@
-```json
 {
   "persona": "bull",
   "ticker": "QQQ",
   "direction": "ACCUMULATE",
   "confidence": 4,
-  "primary_argument": "QQQ is positioned at 0.96 of its 10-day range while the entire Nasdaq-100 software and platform layer—Microsoft, Google, Meta, Amazon—remains structurally underpinned by accelerating hyperscaler AI infrastructure spending, with QQQ's +0.15% move today matching the broader tech regime and positioning it to capture software/platform gains faster than hardware-dependent peers.",
-  "supporting_evidence": "QQQ is trading just 0.29% below its 10-day high of $746.16 while maintaining position at 0.96 in its recent range, signaling sustained institutional accumulation; the 3-day return of +3.75% and 5-day return of +5.11% confirm uptrend momentum with a 3-session winning streak; QQQ trades above its 50-day moving average of $684.99 (+8.6%), establishing a clean technical foundation for continued accumulation.",
-  "key_assumption": "Hyperscaler AI infrastructure CapEx remains on an accelerating trajectory through 2026, with no material pullback in Microsoft, Google, Meta, or Amazon capital allocation guidance—this assumption is critical because if any of the top-4 QQQ components signal CapEx moderation in their next earnings cycle, the entire software/platform rotation thesis collapses.",
-  "regime_sensitivity": "In a low_vix regime (current state at 16.15), this accumulate call is maximally valid—QQQ benefits from multiple expansion and sustained inflows into large-cap tech. If VIX spikes above 25, the call remains intact but confidence drops to 3: QQQ's concentration in mega-cap tech makes it vulnerable to rotation into defensives, and the narrow breadth of the AI narrative (top 7 stocks drive most gains) becomes a liability in risk-off environments.",
+  "primary_argument": "QQQ is structurally primed to capture the next explosive leg of AI-driven market expansion as software and platform margins compound ahead of hardware cycle normalization, with today's shallow pullback near structural lows presenting a high-conviction accumulation zone ahead of hyperscaler CapEx acceleration.",
+  "supporting_evidence": "QQQ's current price of $711.44 sits just 0.16% below its 50-day MA at $712.57 and only 3.39% off its 10-day high of $736.40, confirming this is a brief, high-conviction dip rather than a trend break; while broader indices sold off on geopolitical headlines, QQQ's +0.62% gain demonstrates institutional capital rotating into its software/platform heavyweights as the safest AI monetization proxy; and subdued volume at 32.6M shares (0.73x the 30-day average) reflects efficient, low-cost accumulation by long-term capital quietly positioning ahead of the next earnings-driven repricing cycle.",
+  "key_assumption": "Hyperscalers (Microsoft, Google, Meta, Amazon) will maintain or accelerate their AI infrastructure and software deployment CapEx budgets through the next reporting cycle, driving sustained revenue growth and multiple expansion in QQQ's top holdings.",
+  "regime_sensitivity": "In a low VIX regime, QQQ accelerates rapidly as risk appetite fuels multiple expansion for its high-growth tech components; even if VIX spikes temporarily to elevated levels, QQQ's diversified software/platform base acts as a liquidity and margin buffer, making any volatility-induced dips premium accumulation zones rather than structural breaks.",
   "watch_items": [
-    "Microsoft, Google, Meta, or Amazon report CapEx guidance below consensus or signal AI infrastructure spending deceleration in next earnings call—this would invalidate the hyperscaler fuel assumption and trigger immediate reassessment.",
-    "QQQ closes below its 50-day moving average of $684.99 on a 3% single-day decline or larger—this would signal technical breakdown of the uptrend and suggest institutional accumulation has stalled, requiring exit of the accumulate thesis."
+    "QQQ closes below $700 on rising volume (>45M shares), breaking the 10-day support floor and signaling a shift to medium-term distribution.",
+    "SMH outperforms QQQ by >3% over five consecutive sessions, confirming a hardware-first capital rotation that temporarily sidelines software/platform valuation premiums."
   ]
 }
-```

@@ -1,18 +1,14 @@
-```json
 {
   "persona": "pragmatist",
   "ticker": "G3B.SI",
   "direction": "HOLD",
-  "confidence": 2,
-  "statistical_anchor": "G3B.SI up 0.99% on 1.4x volume (462k shares) while US tech chain (NVDA +0.24%, TSM +0.15%, QQQ +0.15%) shows muted gains. Price at 0.65 position in 10-day range, above 50-day MA ($5.16), 3-day streak up +1.52%. Data insufficient to establish directional conviction — move lacks either conviction volume or clear momentum relative to peers.",
-  "volume_assessment": "Volume at 1.4x 30-day average is elevated but not extreme. The 0.99% move on normal-regime volume suggests modest institutional interest rather than conviction accumulation. Volume signal is 'normal' — the move is not noise, but neither is it backed by panic or aggressive positioning. Durability is neutral.",
-  "trend_assessment": "G3B.SI is in a short-term uptrend (3 sessions up, +1.52% over 3 days) and trades above its 50-day MA ($5.16). Position at 0.65 in the 10-day range indicates price is in the upper half but not at extremes (only -1.24% from 10-day high of $5.34). No 200-day MA data available — insufficient long-term context. Momentum is building but not exhausting. Relative to the semiconductor chain peers, G3B.SI's +0.99% outperformance is modest and could reflect SGD strength or local banking sector tailwinds rather than thesis-driven divergence.",
-  "regime_context": "Macro regime is stable: Fed paused, 10Y UST at 4.2%, USD/SGD at 1.34 (stable), VIX at 16.15 (normal). No geopolitical escalation, no new export controls, no MAS policy shifts. In a stable, low-volatility regime, Singapore banking dividend stocks (DBS, OCBC, UOB) typically underperform US tech growth on a relative basis. G3B.SI's outperformance today is small enough to be noise rather than a regime-driven signal. The thesis assumption — that G3B.SI cushions when US tech falls — remains untested in current data.",
+  "confidence": 3,
+  "statistical_anchor": "Price sits at $5.47, exactly at the 10-day high and position 1.0 in its short-term range, with a +2.82% 5-day return but a zero-session momentum streak.",
+  "volume_assessment": "Volume is normal (1.25x 30-day average), indicating sustained but unconvincing participation; lacks the >1.5x conviction threshold required to sustain a breakout from established resistance.",
+  "trend_assessment": "Short-term uptrend remains intact above the 50-day MA ($5.24), but price is stalled at range highs with exhausted momentum, statistically favoring consolidation or a mean reversion pullback toward $5.30–$5.24 over the next 3–5 sessions.",
+  "regime_context": "Stable macro environment (Fed paused, 10Y UST ~4.2%, VIX ~17) and fixed USD/SGD rate remove directional catalysts, historically compressing SGD-denominated equity ETFs into tight consolidation channels until local earnings or policy shifts occur.",
   "watch_items": [
-    "Thesis-integrity breach: If G3B.SI falls below $5.16 (50-day MA) while US tech (NVDA, QQQ) continues higher, the diversification thesis has failed — flag as portfolio rebalance signal.",
-    "Volume conviction threshold: If next session prints >2.0x 30-day average volume on directional move (up or down >1.5%), it signals institutional rotation into or out of local anchor — material enough to shift confidence to 4+.",
-    "SGD/USD rate: Monitor USD/SGD movement. If SGD strengthens materially (1.34 → 1.30 or lower), repatriation benefit increases; if SGD weakens, thesis advantage erodes.",
-    "Streak exhaustion: If 3-session up streak breaks (next close below $5.30), momentum reversal becomes probable — confidence in HOLD drops to 1, consider REDUCE."
+    "Break below $5.24 (50-day MA) would shift statistical bias to REDUCE",
+    ">$5.50 on >1.5x volume would confirm breakout and justify continued HOLD"
   ]
 }
-```

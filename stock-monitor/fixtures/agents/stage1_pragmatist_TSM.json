@@ -1,17 +1,14 @@
-```json
 {
   "persona": "pragmatist",
   "ticker": "TSM",
   "direction": "HOLD",
   "confidence": 3,
-  "statistical_anchor": "TSM is up 3.39% over 5 days and 4.83% over 3 days, trading at 0.89 position in recent range (near highs), 10.5% above 50-day MA, only 0.95% below 10-day high of $445.65. However, today's volume is 0.83x 30-day average (below-normal conviction), and price moved only +0.15% on muted tape. The short-term momentum is real but volume is thinning — classic exhaustion signal.",
-  "volume_assessment": "Today's move (+0.15%) occurred on 0.83x average volume — this is noise, not conviction. The 3-5 day rally that brought TSM to 0.89 position in range appears to have been driven by sector-wide semiconductor strength (SMH +0.23%, NVDA +0.24%, QQQ +0.15% today), but TSM's own volume did not confirm the breakout to near-range highs. Thin tape on a high-momentum day suggests retail/momentum exhaustion rather than institutional accumulation.",
-  "trend_assessment": "TSM is in a confirmed short-term uptrend: 3 consecutive up sessions, +4.83% over 3 days, trading 10.5% above 50-day MA ($399.39), and positioned at 0.89 in recent range. However, the move is now compressed near the 10-day high ($445.65, only 0.95% away). Momentum is building but space to run is geometrically constrained. The 50-day MA is the structural support; 200-day MA data is unavailable (flag: incomplete historical context). Above the 50-day MA is bullish, but proximity to range highs + thinning volume suggests the rally is entering a consolidation or reversion zone.",
-  "regime_context": "Macro regime is neutral-to-stable: 10Y UST at 4.2% (unchanged), Fed data-dependent and paused, USD/SGD at 1.34 (stable), VIX at 16.15 (normal regime, slightly down). No geopolitical escalation signals, no new export control announcements, no major AI research announcements this week. This is a low-volatility, low-catalyst environment. TSM typically performs well in low-rate, stable-dollar regimes (supports valuation multiples), but the absence of fresh demand signals (no hyperscaler CapEx updates, no new model announcements) removes the near-term catalyst that drove the 3-5 day rally. Taiwan Strait risk remains structurally present but inactive in headlines.",
+  "statistical_anchor": "Price at $436.98 sits at the 0.1 position of its 10-day range and holds 3.7% above the 50-day MA ($421.86), but a +1.39% daily gain on only 0.73x average volume suggests the bounce lacks conviction.",
+  "volume_assessment": "Thin tape noise. Volume at 0.73x the 30-day average indicates weak participation; the +1.39% move is statistically likely to be a liquidity-driven bounce rather than institutional accumulation, reducing durability.",
+  "trend_assessment": "Short-term trend is down (-3.28% over 3 days) with price anchored at the lower extreme of its recent range (0.1 position). Momentum is neutral-to-weak; holding above the 50-day MA provides a quantitative floor but does not confirm reversal without volume expansion.",
+  "regime_context": "Normal volatility regime (VIX ~16.9) and stable rate environment (10Y UST 4.2%) historically favor range-bound semiconductor behavior over directional breaks. TSM's relative lag (+1.39% vs SMH +2.97%) signals sector rotation or idiosyncratic pressure rather than systemic demand weakness.",
   "watch_items": [
-    "If TSM closes below $437 (break of 50-day MA support at $399.39 + 2 standard deviations of recent volatility), the statistical picture shifts to REDUCE — the rally would have failed at range highs and volume would confirm distribution.",
-    "If volume spikes above 1.2x 30-day average on a down day, or if NVDA/AVGO show material weakness (-1% or more) while TSM does not follow, the chain correlation breaks and TSM becomes vulnerable to isolated selling pressure.",
-    "If CoWoS utilisation or N2/A16 node ramp guidance is revised downward in next earnings, the structural thesis (capacity constraints as AI ceiling) is invalidated — watch for any supply-chain commentary suggesting demand softening."
+    "Volume expansion above 1.5x 30-day average on a close above $445",
+    "Daily close below $421.86 (50-day MA breach)"
   ]
 }
-```

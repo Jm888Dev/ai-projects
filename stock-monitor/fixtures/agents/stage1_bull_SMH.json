@@ -1,16 +1,14 @@
-```json
 {
   "persona": "bull",
   "ticker": "SMH",
   "direction": "ACCUMULATE",
   "confidence": 4,
-  "primary_argument": "SMH is positioned at the 10-day high with all major chain components (NVDA +0.24%, TSM +0.15%, LITE +0.55%) moving in synchronized upward momentum, confirming broad-based semiconductor cycle strength rather than isolated AI euphoria, while the AI research pipeline (LLM4RTL, NeuronFabric transformer training architectures) signals sustained demand for advanced chip design and compute infrastructure.",
-  "supporting_evidence": "SMH at $647.1 is at the exact 10-day high (distance from high: 0.0%), with a 9.49% five-day return and 6.18% three-day return establishing clear upward momentum. The entire semiconductor chain moves in lockstep — NVDA +0.24%, TSM +0.15%, LITE +0.55%, AVGO -0.22% (minor pullback, not reversal) — indicating sector-wide strength, not concentration in a single name. SMH trades 21.3% above its 50-day MA ($533.97), confirming the trend is structural, not noise.",
-  "key_assumption": "The assumption that underpins this call is that hyperscaler CapEx remains robust and translates into sustained semiconductor equipment orders and advanced node adoption at TSM and Samsung, which would be disrupted only by a macro shock (recession, major geopolitical escalation, or export control tightening) — none of which are signaled in the current intelligence feed.",
-  "regime_sensitivity": "In a low_vix regime (current: 16.15, normal), this call strengthens — risk-on positioning favors hardware accumulation and SMH's leverage to the semiconductor cycle. In a high_vix regime (>25), the call weakens materially because SMH's top two holdings (NVDA ~20%, TSM ~10%) would face simultaneous selling pressure, and the ETF provides no diversification hedge against sector-wide drawdowns. A VIX spike to 30+ would force a downgrade to HOLD pending chain reassessment.",
+  "primary_argument": "SMH is positioned for explosive upside as its top holdings NVDA and TSM surge, capturing the full AI hardware expansion from a prime accumulation zone just above the 50-day moving average.",
+  "supporting_evidence": "Today's +2.9693% gain alongside NVDA (+4.20%) and AVGO (+5.66%) confirms broad semiconductor momentum is returning, with price firmly reclaiming the $585.78 50-day MA. The recent dip to $581.45 (position 0.16 in the range) represents a textbook accumulation zone ahead of a breakout toward the $655.89 high, amplified by stable 10Y yields at 4.2% and a paused Fed removing rate headwinds for long-duration hardware capex. Normal volume (0.88x average) on this reversal day signals institutional accumulation without overextension, setting up a low-friction move higher as Apple's $30B Broadcom chip commitment validates sustained AI infrastructure spending.",
+  "key_assumption": "Hyperscaler AI data center capital expenditure remains on an exponential growth trajectory through 2026-2027, sustaining the demand pull that flows directly to SMH's top components.",
+  "regime_sensitivity": "In a low_vix regime, this call strengthens significantly as risk appetite expands and hardware multiples re-rate higher; in a high_vix regime, the thesis still holds but requires tighter entry timing on pullbacks to the 50-day MA, as volatility will cap near-term upside velocity rather than invalidate the structural trend.",
   "watch_items": [
-    "SMH drops more than 3% while NVDA holds flat or rises — signals broader semiconductor weakness decoupled from AI demand anchor, invalidating the 'synchronized strength' thesis.",
-    "Semiconductor equipment order data (ASML, LRCX earnings or guidance) shows contraction or forward guidance cut — leading indicator that would contradict the assumption of sustained CapEx and force exit."
+    "SMH closes below $581.45 on volume exceeding 1.2x the 30-day average, confirming breakdown of the accumulation range and triggering sector-wide de-risking.",
+    "NVDA drops more than 5% in a single session while SMH underperforms by over 3 percentage points, signaling a structural decoupling where AI demand is peaking and hardware rotation is accelerating downward."
   ]
 }
-```

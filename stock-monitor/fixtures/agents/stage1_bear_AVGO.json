@@ -1,16 +1,18 @@
-```json
 {
   "persona": "bear",
   "ticker": "AVGO",
   "direction": "REDUCE",
-  "confidence": 3,
-  "primary_argument": "AVGO is pricing in a custom silicon decoupling thesis that has no confirmation signal yet—the stock is down 18.2% from its 10-day high while NVDA remains flat, suggesting the market is already discounting the rotation narrative without evidence that hyperscalers are actually shifting volume away from NVIDIA infrastructure.",
-  "supporting_evidence": "AVGO is trading $87.63 below its 10-day high of $481.57 (18.2% drawdown) while NVDA is up 0.24% today and TSM is up 0.15%, indicating sector-wide strength is not translating to AVGO—the thesis requires AVGO to decouple upward while NVDA faces pressure, but instead AVGO is decoupling downward while NVDA holds steady. No custom chip design win announcements or hyperscaler contract renewals appear in the intelligence feed, and the thesis is built entirely on forward optionality ('AVGO can strengthen') rather than realized business momentum.",
-  "key_assumption": "The bull case assumes that hyperscalers' custom silicon initiatives (Google TPU, Meta MTIA, Apple Neural Engine) will systematically reduce NVIDIA GPU adoption and that AVGO's networking layer will win incremental share as a result. This assumption ignores that: (1) custom silicon and NVIDIA GPUs are complementary, not substitutional—hyperscalers run both simultaneously, (2) AVGO's Ethernet switching business is commoditized and price-competitive; winning 'custom chip design' does not confer pricing power or margin expansion, and (3) the decoupling signal the thesis relies on (AVGO up, NVDA down) has not materialized—instead AVGO is down while NVDA is stable, which is the opposite of thesis confirmation.",
-  "regime_sensitivity": "This bear call weakens in a high_vix crisis regime. In a flight-to-quality drawdown, AVGO's commodity networking business and lack of confirmed custom silicon revenue would face margin compression and customer capex delays simultaneously. The thesis is premised on hyperscaler strength and CapEx expansion—both of which evaporate in a VIX spike. In a low_vix regime (current), the bear case strengthens because there is no external shock forcing a rotation; AVGO must prove the custom silicon thesis on its own merits, and it has not.",
+  "confidence": 4,
+  "primary_argument": "AVGO's +5.66% relief rally is a structurally hollow distribution trap, exhausting at its 10-day high with normal volume while remaining firmly below the 50-day moving average.",
+  "supporting_evidence": [
+    "Price sits exactly at the 10-day high ($388.69) and range position 1.0, indicating peak exhaustion with follow-through volume absent (only 1.08x 30-day average).",
+    "The stock trades 4.4% below its 50-day moving average ($406.75), confirming the short-term bounce is a dead cat within a broader technical breakdown.",
+    "The $30B Apple custom chip headline represents multi-year deferred revenue recognition that cannot offset near-term hyperscaler Capex pullback risks or NVDA's entrenched InfiniBand networking moat."
+  ],
+  "key_assumption": "The bull assumes custom ASIC design wins provide immediate earnings visibility and structural insulation from GPU vendor consolidation, but custom silicon is a low-margin, execution-heavy race where hyperscaler CapEx cuts or architecture pivots can instantly invalidate multi-year pipeline assumptions.",
+  "regime_sensitivity": "Strengthens in a high_vix crisis regime (thematic growth multiples compress rapidly, export control fears amplify, and relief rallies on normal volume become distribution traps).",
   "watch_items": [
-    "AVGO earnings call (next quarterly): zero or negligible custom silicon revenue recognition, or management guidance that custom chip design wins do not materially improve gross margins—this would prove the thesis is optionality without near-term cash impact",
-    "AVGO underperforms SMH and NVDA for two consecutive weeks while both remain in uptrends—this would signal the market is repricing AVGO as a commodity networking play, not a custom silicon gatekeeper, and the decoupling narrative is broken"
+    "AVGO closes below $380 on above-average volume without a follow-through catalyst, confirming the $388–$390 zone as structural resistance.",
+    "US Commerce Department announces expanded export restrictions on advanced networking ASICs or custom chip IP, triggering a >6% sector-wide drawdown across AVGO and SMH within 48 hours."
   ]
 }
-```

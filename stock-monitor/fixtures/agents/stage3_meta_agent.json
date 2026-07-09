@@ -1,91 +1,79 @@
-```json
 {
-  "portfolio_session": "2026-06-16",
+  "portfolio_session": "2026-07-09",
   "vix_regime": "normal",
   "tickers": {
     "NVDA": {
-      "decision": "HOLD",
-      "confidence": 2,
-      "primary_rationale": "Demand anchor thesis remains structurally intact (Bull 4/5), but volume conviction has collapsed to 79% of 30-day average on a 0.24% up day, and the Contrarian's unexamined constraint—municipal permitting and power grid capacity limits on data center buildout—is already activating in real-time (Illinois pause, Georgia political fight) without appearing in any earnings model. Hold pending volume confirmation and next earnings catalyst.",
-      "key_tensions": "Bull assumes hyperscaler CapEx is exogenous and accelerating; Contrarian argues it is constrained by municipal zoning and utility commissions, not chip supply. Bear sees distribution setup on low volume; Pragmatist sees ambiguous momentum. Black Swan correctly identifies data center permitting as the leading indicator, but all four agents are watching earnings calls instead of FERC queue reports and state utility commission filings. Resolved by: treating the Contrarian's permitting constraint as a co-equal risk to demand destruction, requiring explicit monitoring of Illinois, Georgia, Virginia, Texas permit flows before next earnings cycle.",
-      "kill_trigger_1": "NVDA closes below $207.41 (50-day MA) on volume >1.2x 30-day average for 2 consecutive sessions, signaling breakdown of intermediate support and loss of momentum conviction.",
-      "kill_trigger_2": "NVDA data centre revenue guidance in next earnings misses consensus by >5% OR full-year hyperscaler CapEx growth forecast from Microsoft, Google, Meta, Amazon is revised downward >10% in next earnings cycle, invalidating the demand anchor thesis.",
-      "kill_trigger_3": "US announces new semiconductor export controls targeting advanced node AI accelerators or CoWoS packaging within 90 days, forcing NVDA to bifurcate product roadmap and creating 6-12 month supply chain reset during which hyperscalers pause CapEx commitments.",
-      "review_horizon": "T+3 sessions (next earnings catalyst window)"
-    },
-    "AVGO": {
-      "decision": "REDUCE",
-      "confidence": 3,
-      "primary_rationale": "AVGO is down 18.2% from 10-day high while NVDA remains flat, signaling the market is already discounting the custom silicon decoupling thesis without evidence that hyperscalers are actually shifting volume away from NVIDIA infrastructure. The Contrarian correctly identifies that all four agents are hyperfocused on the optionality narrative (custom chips) while ignoring the base case (commodity switching margins under pressure). Reduce to lock in thesis-integrity risk.",
-      "key_tensions": "Bull assumes custom silicon wins are durable competitive moats; Black Swan argues they are temporary design partnerships vulnerable to hyperscaler internalization. Bear sees commodity networking as the real business; Contrarian argues the entire committee is reasoning around the absence of custom silicon revenue data rather than through it. Pragmatist flags volume exhaustion and lack of directional conviction. Resolved by: treating custom silicon as unconfirmed optionality (not a fundamental rerating driver) and reducing exposure until next earnings clarifies the revenue mix and gross margin profile of custom ASIC work.",
-      "kill_trigger_1": "AVGO closes below $372.10 (10-day low) on volume >1.2x 30-day average, signaling breakdown below recent support and broader semiconductor weakness spreading beyond AI narrative.",
-      "kill_trigger_2": "AVGO earnings call reveals zero or negligible custom silicon revenue recognition, or management guidance that custom chip design wins do not materially improve gross margins (remain <60%), proving the thesis is optionality without near-term cash impact.",
-      "kill_trigger_3": "Any hyperscaler earnings call announcement of 'we are internalizing chip design' or 'reducing external ASIC dependencies' signals AVGO's custom silicon moat is eroding and contract loss is imminent.",
-      "review_horizon": "T+1 week (next earnings catalyst window)"
-    },
-    "LITE": {
-      "decision": "HOLD",
-      "confidence": 2,
-      "primary_rationale": "LITE has rallied 16.49% in 5 days on no fresh catalyst, positioning it at 6.99% below 10-day high on 0.82x average volume—a momentum exhaustion setup masquerading as thesis activation. The Contrarian correctly identifies that hyperscaler architecture decisions (optical vs. copper interconnects) were likely made 6-12 months ago in private meetings, and LITE's next earnings will reveal whether the company won or lost those decisions, not whether the transition is happening. Hold pending earnings disclosure of customer concentration and order book health.",
-      "key_tensions": "Bull assumes the copper-to-light transition is imminent and inevitable; Bear argues it is real but multi-year and already priced in. Black Swan identifies architectural shift risk (NVDA moving to copper-based chiplets); Contrarian argues the market is betting on a future announcement that may already be decided and rejected. Pragmatist flags momentum exhaustion on thin volume. Resolved by: treating LITE as a frontier bet that requires explicit earnings confirmation of hyperscaler adoption before adding exposure; current rally is noise-driven, not conviction-driven.",
-      "kill_trigger_1": "LITE closes below $903.34 (50-day MA) on volume >1.2x 30-day average, signaling momentum break and potential capitulation of the recent rally.",
-      "kill_trigger_2": "LITE earnings call reveals hyperscaler customer concentration >60% or guidance flat/down YoY for optical interconnect orders, signaling the transition is slower than priced and the stock is trading on hope rather than order flow.",
-      "kill_trigger_3": "NVDA's next architecture announcement includes any mention of chiplet interconnect strategy shift toward copper-based or on-package interconnects instead of optical, killing LITE's primary thesis anchor.",
-      "review_horizon": "T+3 sessions (next earnings catalyst window)"
-    },
-    "TSM": {
       "decision": "REDUCE",
       "confidence": 4,
-      "primary_rationale": "TSM is a geopolitical hostage with no hedging mechanism, and the Contrarian correctly identifies that all four agents are underweighting the speed and specificity of regulatory tightening. The Anthropic suspension (June 13) signals US regulators are willing to use emergency orders to disable specific AI models in real time. This capability means TSMC's 'structural capacity constraint' thesis is now subordinate to regulatory constraint. Reduce exposure until clarity emerges on the breadth and permanence of US AI model restrictions.",
-      "key_tensions": "Bull assumes US export controls remain stable and CoWoS capacity constraints are the binding constraint; Bear argues regulatory tightening is now the binding constraint. Black Swan identifies forced customer portfolio rebalancing risk (NVIDIA-only dependency); Contrarian argues the market has not priced the option value of US regulators exercising emergency disable authority on advanced packaging deployments. Pragmatist sees momentum building but volume thinning. Resolved by: treating regulatory risk as a co-equal constraint to capacity, and reducing conviction until next earnings clarifies management's view on regulatory uncertainty and customer booking trends.",
-      "kill_trigger_1": "TSM closes below $399.39 (50-day MA) on volume >1.2x 30-day average for 2 consecutive sessions, signaling breakdown of intermediate support and loss of momentum conviction.",
-      "kill_trigger_2": "TSMC guidance revision on AI revenue mix or CoWoS capacity utilization in next earnings call cites regulatory uncertainty or reduced customer bookings, confirming the bear case and triggering 3-7% downside repricing.",
-      "kill_trigger_3": "US announces new semiconductor export controls targeting advanced node AI accelerators, CoWoS packaging, or Taiwan-origin semiconductors, immediately reducing TSM's addressable market and triggering 8-12% downside as thesis assumptions break.",
-      "review_horizon": "T+1 week (next earnings catalyst window)"
+      "primary_rationale": "Contrarian and bearish consensus, combined with contrarian blind spot on inventory cycles, outweighs bullish momentum.",
+      "key_tensions": "Bullish acceleration vs. bearish distribution; resolved by prioritizing contrarian insight that demand may lag CapEx commitments.",
+      "kill_trigger_1": "NVDA closes below its 50-day moving average for 3 consecutive trading days.",
+      "kill_trigger_2": "NVDA announces that its current data center GPU utilization has fallen below 40% of the committed capacity for the latest quarter.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
     },
     "AVGO": {
       "decision": "REDUCE",
+      "confidence": 4,
+      "primary_rationale": "Bearish and contrarian consensus on legacy revenue erosion outweighs bullish custom silicon upside.",
+      "key_tensions": "Bullish custom‑silicon narrative vs. bearish view of legacy segment contraction; resolved by emphasizing contrarian concern about delayed earnings impact.",
+      "kill_trigger_1": "AVGO closes below $380 with volume exceeding 35 million shares on the same day.",
+      "kill_trigger_2": "AVGO discloses that custom silicon revenue accounts for less than 20% of total revenue in the latest quarter.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
+    },
+    "LITE": {
+      "decision": "REDUCE",
       "confidence": 3,
-      "primary_rationale": "AVGO is down 18.2% from 10-day high while NVDA remains flat, signaling the market is already discounting the custom silicon decoupling thesis without evidence that hyperscalers are actually shifting volume away from NVIDIA infrastructure. The Contrarian correctly identifies that all four agents are hyperfocused on the optionality narrative (custom chips) while ignoring the base case (commodity switching margins under pressure). Reduce to lock in thesis-integrity risk.",
-      "key_tensions": "Bull assumes custom silicon wins are durable competitive moats; Black Swan argues they are temporary design partnerships vulnerable to hyperscaler internalization. Bear sees commodity networking as the real business; Contrarian argues the entire committee is reasoning around the absence of custom silicon revenue data rather than through it. Pragmatist flags volume exhaustion and lack of directional conviction. Resolved by: treating custom silicon as unconfirmed optionality (not a fundamental rerating driver) and reducing exposure until next earnings clarifies the revenue mix and gross margin profile of custom ASIC work.",
-      "kill_trigger_1": "AVGO closes below $372.10 (10-day low) on volume >1.2x 30-day average, signaling breakdown below recent support and broader semiconductor weakness spreading beyond AI narrative.",
-      "kill_trigger_2": "AVGO earnings call reveals zero or negligible custom silicon revenue recognition, or management guidance that custom chip design wins do not materially improve gross margins (remain <60%), proving the thesis is optionality without near-term cash impact.",
-      "kill_trigger_3": "Any hyperscaler earnings call announcement of 'we are internalizing chip design' or 'reducing external ASIC dependencies' signals AVGO's custom silicon moat is eroding and contract loss is imminent.",
-      "review_horizon": "T+1 week (next earnings catalyst window)"
+      "primary_rationale": "Majority bearish and contrarian view that optical interconnect demand is decoupled from AI growth.",
+      "key_tensions": "Bullish photonics transition vs. bearish liquidity vacuum; resolved by weighing contrarian blind spot on discrete‑to‑integrated I/O shift.",
+      "kill_trigger_1": "LITE closes below $725 with daily volume greater than 1.5 times its 30‑day average.",
+      "kill_trigger_2": "LITE announces quarterly optical module orders below $50 million.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
+    },
+    "TSM": {
+      "decision": "HOLD",
+      "confidence": 3,
+      "primary_rationale": "Pragmatist base rate and contrarian neutrality outweigh bearish and bullish extremes, maintaining a cautious stance.",
+      "key_tensions": "Bullish bottleneck thesis vs. bearish capacity concerns; resolved by giving weight to contrarian view that fixed‑price contracts may erode margins.",
+      "kill_trigger_1": "TSMC falls below its 50-day moving average of $421.86 on a session with volume above 1.5x the 30‑day average.",
+      "kill_trigger_2": "TSMC reports CoWoS capacity utilization has fallen below 70% for two consecutive quarters.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
     },
     "QQQ": {
-      "decision": "HOLD",
-      "confidence": 2,
-      "primary_rationale": "QQQ is at 0.96 of its 10-day range on sub-normal volume (0.94x 30-day average), with SMH outperforming (+0.23% vs +0.15%), which is the exact opposite of the narrative all four agents are trading. The Contrarian correctly identifies that the market is pricing QQQ as if hyperscaler CapEx validation already happened, not as if it will happen in future earnings. If earnings arrive and CapEx guidance is merely in-line (not accelerating), QQQ has nowhere to go because upside is already baked in. Hold pending earnings catalyst and watch for SMH outperformance as a thesis-integrity signal.",
-      "key_tensions": "Bull assumes CapEx guidance will confirm acceleration; Bear assumes it will disappoint; Black Swan assumes regulatory action will halt it; Pragmatist assumes earnings will be the pivot point. But all four share the implicit belief that earnings matter more than current price action. The data today suggests the opposite: QQQ is exhausted at range highs on thin volume, while SMH is outperforming. Resolved by: treating the current positioning as fully priced for positive earnings surprise, and reducing conviction until earnings actually deliver acceleration rather than in-line results.",
-      "kill_trigger_1": "QQQ closes below $684.99 (50-day MA) on volume >1.2x 30-day average, signaling trend reversal and breakdown of intermediate support.",
-      "kill_trigger_2": "Next hyperscaler earnings (Microsoft, Google, Meta, Amazon) commentary on AI infrastructure CapEx guidance shows slowdown, pause, or reallocation of spend away from training clusters, invalidating the software/platform rotation thesis.",
-      "kill_trigger_3": "QQQ vs SMH spread turns negative for 2+ consecutive sessions (SMH outperforming by >100 bps), signaling the market is losing conviction in software outperformance and rotating toward semiconductor strength.",
-      "review_horizon": "T+3 sessions (next earnings catalyst window)"
+      "decision": "REDUCE",
+      "confidence": 3,
+      "primary_rationale": "Contrarian concentration blind spot and bearish consensus outweigh bullish sector rotation thesis.",
+      "key_tensions": "Bullish software‑platform upside vs. contrarian index concentration; resolved by prioritizing contrarian insight that mega‑cap dominance undermines diversification.",
+      "kill_trigger_1": "QQQ closes below its 10‑day low of $706.52 on a day with trading volume exceeding 45 million shares.",
+      "kill_trigger_2": "QQQ reports that its top five holdings now comprise less than 30% of the index by market cap.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
     },
     "SMH": {
-      "decision": "HOLD",
-      "confidence": 2,
-      "primary_rationale": "SMH is at its 10-day high on sub-normal volume (0.95x 30-day average) with a 3-session up streak, but the move lacks the elevated volume signature required to sustain breakout momentum. The Contrarian correctly identifies that synchronized momentum in the short term is not evidence of structural demand—it is evidence of correlated sentiment. The real challenge is that SMH has run +21.3% above its 50-day MA on subaverage volume, which is the textbook setup for mean-reversion correction, not breakout continuation. Hold pending volume confirmation and watch for thesis-integrity signals.",
-      "key_tensions": "Bull assumes synchronized upward momentum across NVDA, TSM, LITE, AVGO confirms broad-based semiconductor cycle strength; Bear argues the move is momentum-driven without fundamental catalyst and faces geopolitical tail risk. Black Swan identifies Taiwan Strait blockade risk and export control escalation; Contrarian argues the Bull case is missing the volume confirmation signal that would validate structural demand. Pragmatist flags exhaustion positioning at range highs. Resolved by: treating the current rally as noise-driven momentum that requires volume expansion (>1.1x average) to confirm conviction; absence of that signature makes the position fragile to mean reversion.",
-      "kill_trigger_1": "SMH closes below $533.97 (50-day MA) on volume >1.2x 30-day average while NVDA and TSM remain above their respective 50-day MAs, signaling sector-wide weakness spreading beyond the AI narrative.",
-      "kill_trigger_2": "Any new US export control announcement targeting advanced chip packaging, CoWoS capacity, or Taiwan-origin semiconductors triggers simultaneous weakness across NVDA, TSM, AVGO, and SMH within 24 hours, proving the geopolitical tail risk is live.",
-      "kill_trigger_3": "Taiwan Strait military activity: PLA exercise announcement with explicit Taiwan Strait closure language, or US Navy transit incident, signals 48-72 hour warning before force majeure triggers and TSM supply shock cascades.",
-      "review_horizon": "T+3 sessions (next earnings catalyst window)"
+      "decision": "REDUCE",
+      "confidence": 4,
+      "primary_rationale": "Bearish and black swan consensus on concentration risk outweighs bullish momentum.",
+      "key_tensions": "Bullish hardware upside vs. bearish concentration and geopolitical exposure; resolved by emphasizing contrarian view that ETF mechanics amplify beta.",
+      "kill_trigger_1": "SMH closes below its 10‑day low of $581.45 on a session with volume above 1.2x the 30‑day average.",
+      "kill_trigger_2": "SMH discloses that its top holdings NVDA and TSM together account for less than 30% of the ETF’s total holdings.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
     },
     "G3B.SI": {
-      "decision": "HOLD",
-      "confidence": 2,
-      "primary_rationale": "G3B.SI is up 0.99% today while US tech chain shows muted gains, but the Contrarian correctly identifies that the diversification thesis has already shown signs of breakdown (recent correlation with US tech rising). Today's outperformance is noise in a position that has already failed its primary job. The Bull is using a single day of normal-regime, low-volatility outperformance as validation of a thesis that should be tested in high-volatility regimes. Hold pending thesis-integrity test in a VIX spike scenario.",
-      "key_tensions": "Bull assumes Singapore banking fundamentals are strengthening independent of semiconductor cycle noise; Bear argues the thesis-integrity signal is broken and G3B.SI is now a correlated asset, not a hedge. Black Swan identifies capital flight risk from PRC capital control tightening; Contrarian argues the thesis was never sound because it assumes Singapore banking stability without questioning Chinese deposit base vulnerability. Pragmatist sees modest outperformance on normal volume. Resolved by: treating G3B.SI as a thesis-integrity test position that must prove its diversification benefit in a high-VIX regime; current low-volatility outperformance is insufficient validation.",
-      "kill_trigger_1": "G3B.SI falls below $5.16 (50-day MA) while US tech (NVDA, QQQ) continues higher, signaling the diversification thesis has failed and portfolio rebalance is required.",
-      "kill_trigger_2": "DBS, OCBC, or UOB next earnings miss dividend guidance or signal capital constraints due to Singapore credit stress, invalidating the income stability thesis and core value proposition.",
-      "kill_trigger_3": "SGD/USD weakens below 1.32 or MAS signals a dovish pivot in monetary policy while US rates remain elevated, eroding the currency hedge benefit and reducing effective USD returns when repatriating gains.",
-      "review_horizon": "T+1 week (next earnings catalyst window)"
+      "decision": "REDUCE",
+      "confidence": 3,
+      "primary_rationale": "Contrarian and bearish consensus on banking pivot to AI financing outweighs bullish dividend stability thesis.",
+      "key_tensions": "Bullish stable‑yield narrative vs. contrarian view of capital reallocation; resolved by prioritizing contrarian blind spot that erodes dividend sustainability.",
+      "kill_trigger_1": "G3B.SI closes below its 50-day moving average of $5.24 on a day with volume exceeding 600,000 shares.",
+      "kill_trigger_2": "G3B.SI discloses that its dividend payout ratio has dropped below 30% of net income in the latest quarter.",
+      "kill_trigger_3": "VIX climbs above 25, indicating a high‑volatility regime.",
+      "review_horizon": "T+1 week"
     }
   },
-  "portfolio_summary": "Portfolio is positioned at a critical inflection point where the semiconductor demand anchor (NVDA) is showing volume exhaustion despite price strength, while the regulatory constraint (Anthropic suspension, export control escalation risk) is shifting from tail risk to base-case scenario. The causal chain (NVDA→TSM→LITE→AVGO) remains structurally intact but is now subordinate to regulatory risk that no agent adequately priced. Cross-ticker tension: SMH and QQQ are both at range highs on sub-normal volume, but SMH is outperforming QQQ (+0.23% vs +0.15%), which contradicts the software/platform rotation narrative all four agents are trading. This is a thesis-integrity signal that the market is losing conviction in the software layer and rotating toward semiconductor strength—exactly the opposite of what the Bull cases assume. G3B.SI's diversification benefit remains untested in a high-VIX regime; current low-volatility outperformance is insufficient validation. Overall posture: HOLD and REDUCE across the board, with elevated monitoring of municipal permitting data (Illinois, Georgia, Virginia, Texas), FERC utility commission queue reports, and next earnings cycle hyperscaler CapEx guidance. The portfolio is fully priced for positive earnings surprises and has no room to run without fresh catalysts.",
-  "premortem_flag": true,
-  "premortem_scenario": "The alternative thesis that better explains the current data: US hyperscaler CapEx is not accelerating but is already at peak deployment, and the market is pricing in continued growth based on stale guidance from the last earnings cycle. The real constraint is not chip supply or fab capacity—it is municipal permitting and power grid capacity limits on data center buildout, which are already activating in Illinois and Georgia without appearing in any earnings model. When this constraint becomes visible in next earnings cycle (hyperscalers cite permitting delays, power grid constraints, or political backlash as reasons to moderate CapEx growth), the entire semiconductor thesis collapses simultaneously: NVDA demand anchor fails, TSM utilization drops, SMH drawdown cascades, LITE photonics orders dry up, AVGO custom silicon demand evaporates. The portfolio is currently positioned as if hyperscaler CapEx will accelerate; the alternative reality is that it is already peaking and will decelerate 12-18 months forward due to infrastructure constraints that are invisible in current earnings models but are already activating in real-time municipal and utility commission decisions. This is a systemic alternative to the consensus thesis, not just a downside case."
+  "portfolio_summary": "The session sees a systematic reduction across thematic growth and frontier bets (NVDA, AVGO, LITE, SMH, G3B.SI) driven by bearish consensus and contrarian blind spots. TSM is held neutrally to monitor capacity dynamics, while QQQ is also reduced due to index concentration concerns. Overall posture shifts toward defensive core stability with a cautious stance on semiconductor exposure.",
+  "premortem_flag": false,
+  "premortem_scenario": null
 }
-```

@@ -1,16 +1,14 @@
-```json
 {
   "persona": "bear",
   "ticker": "NVDA",
   "direction": "REDUCE",
-  "confidence": 3,
-  "primary_argument": "NVDA is pricing in sustained hyperscaler CapEx acceleration without evidence of new demand catalysts, while volume has collapsed to 79% of 30-day average and the stock sits only 4.54% below its 10-day high—a distribution setup masked by flat intraday price action.",
-  "supporting_evidence": "Volume is 0.79x 30-day average on a day the stock is up 0.24%, suggesting weak conviction buying and potential institutional exit under cover of positive price; NVDA is 4.54% below its 10-day high of $222.56 while the broader chain (AVGO, TSM, LITE, SMH) shows synchronized but muted gains (all +0.15% to +0.55%), indicating the demand anchor is not pulling the chain forward—it is being carried by it; intelligence context shows zero new hyperscaler CapEx guidance, zero new Blackwell allocation announcements, and zero major AI research breakthroughs this week, yet the stock has rallied 3.7% in 3 days on momentum alone.",
-  "key_assumption": "The bull case assumes that the absence of negative CapEx revisions equals continued acceleration, and that Blackwell demand is locked in through the cycle. The bear case: hyperscalers have already front-loaded their 2026 CapEx commitments, allocation is shifting to AMD custom silicon (not mentioned in watch items but a structural threat), and the next catalyst (actual Blackwell revenue in earnings) is 4+ weeks away. Until then, NVDA is trading on sentiment, not fundamentals.",
-  "regime_sensitivity": "This bear call strengthens in a low_vix regime (current: VIX 16.15, regime: normal). In low-VIX complacency, momentum-driven distribution is harder to detect and more likely to accelerate downward once volume dries up. In a high_vix crisis regime, NVDA would likely fall sharply on its own, but the bear thesis would be less specific—it would be caught in sector-wide deleveraging rather than a demand-anchor failure. The current regime is the worst for longs: enough stability to hide the weakness, not enough stress to justify panic selling.",
+  "confidence": 4,
+  "primary_argument": "NVDA is exhibiting classic distribution at the 10-day high on sub-average volume while structurally trapped below its 50-day moving average, proving the +4.20% rally is a liquidity trap that has already priced in peak Blackwell demand expectations.",
+  "supporting_evidence": "Price sits exactly at the 10-day high of $204.12 but remains below the critical 50-day MA at $209.38, confirming failed momentum and immediate overhead resistance. Volume is only 0.92x the 30-day average during the +4.20% advance, signaling weak institutional participation and exhaustion at current levels. Intelligence feeds highlight active geopolitical leakage via an ongoing Singapore Nvidia chip smuggling probe and China's explicit $295B domestic AI strategy that purposefully excludes foreign firms, directly eroding the sovereign demand thesis.",
+  "key_assumption": "The bull case assumes hyperscaler CapEx will accelerate unimpeded and Blackwell allocations will smoothly convert to revenue, ignoring the structural reality that geopolitical export controls, smuggling crackdowns, and state-backed domestic substitution are actively capping the addressable market for Nvidia's advanced chips.",
+  "regime_sensitivity": "Strengthens in a high_vix crisis regime as premium multiple compression hits AI valuations hardest and liquidity dries up, whereas it weakens slightly in low_vix only because abundant liquidity temporarily masks the underlying distribution, though the fundamental breakdown risk remains identical.",
   "watch_items": [
-    "NVDA volume remains below 0.85x 30-day average for two consecutive sessions while price remains within 3% of current levels—signals institutional accumulation is not confirming the rally, triggering a test of support at $207.41 (50-day MA)",
-    "Next NVDA data centre revenue guidance or Blackwell allocation announcement shows sequential or YoY growth rate deceleration below 30% YoY, or any mention of customer inventory normalization—this would confirm the thesis is exhausted and the stock is repricing from growth to value"
+    "NVDA fails to reclaim the $209.38 50-day MA within three consecutive sessions, confirming distribution and triggering stop-loss chains across SMH and TSM.",
+    "Next hyperscaler earnings cycle reveals QoQ data center capex guidance contraction of >5% or AMD reports custom silicon ASP expansion exceeding 10% in quarterly revenue."
   ]
 }
-```

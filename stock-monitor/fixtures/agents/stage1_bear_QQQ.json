@@ -1,16 +1,18 @@
-```json
 {
   "persona": "bear",
   "ticker": "QQQ",
   "direction": "REDUCE",
-  "confidence": 3,
-  "primary_argument": "QQQ is pricing a software/platform AI outperformance narrative that depends entirely on sustained hyperscaler CapEx growth, but the chain shows no upstream momentum signals — NVDA flat, TSM flat, AVGO negative — suggesting the market has already front-run the AI infrastructure thesis and is now vulnerable to disappointment on execution.",
-  "supporting_evidence": "QQQ +0.15% vs SMH +0.23% shows the supposed 'software outperformance' thesis is not actually playing out today; the semiconductor layer is matching or beating the Nasdaq-100 on a day with normal volume (0.94x 30-day avg), indicating no conviction rotation into QQQ's mega-cap software holdings. AVGO -0.22% is the first negative signal in the chain today, suggesting network infrastructure demand may be softening before it shows up in broader semiconductor weakness. QQQ is trading 0.96 of its 10-day range (near the high at $744 vs $746.16 high), leaving minimal upside buffer while the thesis requires sustained CapEx commentary from earnings to justify current valuations.",
-  "key_assumption": "The bull case assumes that Microsoft, Google, Meta, and Amazon will continue to justify massive CapEx spend on AI infrastructure through demonstrable revenue and margin accretion from AI products — but the intelligence feed shows no new hyperscaler CapEx guidance updates since the last earnings cycle, and the headline noise is dominated by open-source and lower-cost AI alternatives (Nous Research's free NousCoder, Anthropic's Claude Code facing free competition from Goose) that directly threaten the pricing power and ROI assumptions underpinning the mega-cap software thesis.",
-  "regime_sensitivity": "This bear call strengthens in a low_vix regime because the current normal VIX (16.15) and stable macro backdrop are masking the absence of positive momentum signals in the chain — if VIX spikes, QQQ's valuation multiple compresses before the CapEx thesis can be re-validated by earnings. In a high_vix crisis regime, QQQ would face simultaneous multiple compression and uncertainty around hyperscaler spending discipline, making the thesis highly fragile.",
+  "confidence": 4,
+  "primary_argument": QQQ’s core thesis of software and platform AI monetization outpacing hardware is already fracturing, as evidenced by severe relative underperformance against semiconductor peers, declining conviction volume, and price action trapped below short-term moving averages amid escalating geopolitical fragmentation that directly threatens mega-cap tech revenue multiples.
+  "supporting_evidence": [
+    "QQQ gained only +0.62% today while SMH surged +2.97% and NVDA rose +4.20%, shattering the software-outpacing-hardware divergence signal that anchors the thesis.",
+    "Trading volume is just 0.73x the 30-day average at 32.6M shares, indicating a lack of institutional conviction behind this marginal green close while price remains below the $712.57 10-day MA and near the 0.16 position in its recent range.",
+    "China’s explicit $295B AI strategy to exclude foreign firms, combined with Singapore’s seizure of Nvidia chips in an export control probe, signals tightening regulatory and geopolitical headwinds that will compress QQQ’s mega-cap revenue streams."
+  ],
+  "key_assumption": "The bull assumes hyperscaler AI CapEx will rapidly translate into software/platform earnings growth for QQQ constituents; this is fragile because capital allocation is currently bottlenecked at the hardware procurement stage, while geopolitical decoupling and export controls are actively shrinking the addressable market for US cloud and software providers.",
+  "regime_sensitivity": "Weakens significantly in a high_vix crisis regime due to duration risk, geopolitical contagion, and rate sensitivity, but even in low_vix it lacks conviction volume and relative strength to justify accumulation or hold positioning.",
   "watch_items": [
-    "Next hyperscaler earnings (Microsoft, Google, Meta, Amazon) commentary on AI infrastructure CapEx guidance: if any major player signals slowdown, pause, or reallocation of spend away from training clusters, QQQ breaks below $730 as the software outperformance narrative collapses.",
-    "QQQ vs SMH spread narrows below the 3-day average (currently QQQ +0.15% vs SMH +0.23% = -8bps spread): if this spread turns negative for 2+ consecutive sessions, the thesis assumption that software is outpacing hardware is falsified, and QQQ becomes a value trap trading on stale AI narrative momentum."
+    "QQQ breaks below $706.52 (10-day low) on a down day with volume exceeding 35M shares",
+    "SMH maintains a >3% outperformance spread over QQQ for three consecutive trading sessions"
   ]
 }
-```

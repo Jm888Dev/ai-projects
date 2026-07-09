@@ -1,16 +1,18 @@
-```json
 {
   "persona": "bull",
   "ticker": "LITE",
   "direction": "ACCUMULATE",
   "confidence": 4,
-  "primary_argument": "LITE is positioned at the inflection point of mandatory optical interconnect adoption in AI data centres, with upstream chain health (NVDA +0.24%, TSM +0.15%, AVGO flat) confirming demand anchor stability and LITE's own +0.55% outperformance today signalling market recognition of the copper-to-light transition thesis.",
-  "supporting_evidence": "LITE is trading 6.99% below its 10-day high of $1029.15 while maintaining position 0.65 in its recent range and sitting above its 50-day MA of $903.34, indicating healthy pullback within an established uptrend; the 4-session winning streak and 16.49% five-day return confirm momentum persistence; upstream NVDA and TSM both positive today despite normal volume across the chain rules out panic liquidation and suggests conviction accumulation.",
-  "key_assumption": "The structural thesis depends entirely on NVDA maintaining current cluster architecture density (particularly Blackwell NVLink scaling) and TSMC sustaining CoWoS production capacity for advanced node demand — if either anchor signals contraction or capacity constraint, LITE's entire downstream benefit case collapses within 2-3 earnings cycles regardless of optical adoption progress.",
-  "regime_sensitivity": "In low-VIX regime (current: 16.15), this call strengthens — LITE's frontier-bet sizing and higher volatility tolerance are optimally positioned for risk-on conditions where thematic conviction flows into small-cap photonics pure-plays. In high-VIX (>25), the thesis inverts: sector rotation away from semiconductor supply chain bets would hit LITE first and hardest as the smallest, most leveraged position in the chain, making this a HOLD or EXIT candidate immediately upon VIX spike above 22.",
+  "primary_argument": "LITE is positioned at the exact inflection point where AI cluster scaling forces a mandatory shift from copper to optical interconnects, and today's upstream rally in NVDA and AVGO confirms that hyperscaler demand is accelerating faster than the market prices into this photonics transition.",
+  "supporting_evidence": [
+    "Upstream chain momentum: NVDA is up +4.20% and AVGO surging +5.66%, validating the demand and networking infrastructure thesis that directly precedes LITE's optical I/O order flow.",
+    "Technical accumulation setup: Trading at $707.1 near the 10-day low of $698.91 (-17.97% from high) with volume compressed to 0.44x the 30-day average, signaling institutional quiet accumulation ahead of a breakout.",
+    "Macro tailwind alignment: VIX at 16.9 in a normal regime with stable 10Y UST yields at 4.2%, providing the low-risk environment necessary for high-beta frontier photonics to expand multiples."
+  ],
+  "key_assumption": "Hyperscaler data center CapEx cycles remain uninterrupted and accelerate optical interconnect adoption faster than copper-based scaling, keeping NVDA demand and TSMC CoWoS capacity healthy upstream of LITE.",
+  "regime_sensitivity": "In a low_vix regime, LITE's frontier growth premium expands rapidly as capital rotates into high-beta infrastructure bets; if VIX spikes to high_vix (>25), the thesis compresses temporarily but remains structurally intact once volatility normalizes and CapEx guidance resumes.",
   "watch_items": [
-    "NVDA next earnings guidance for Blackwell NVLink density or cluster architecture changes — any guidance reduction or shift away from optical interconnect density targets invalidates the core thesis within 60 days",
-    "TSMC CoWoS capacity utilization announcement or forward guidance below 80% — signals production floor constraint that breaks the causal chain and forces LITE demand reassessment regardless of adoption signals"
+    "NVDA reports a >10% sequential decline in data center revenue or announces a major architectural shift back to copper-dominant interconnects for next-gen clusters.",
+    "LITE's next quarterly guidance reveals hyperscaler optical module orders falling below $50M per quarter or explicitly cites supply chain delays from upstream TSMC/NVDA as the primary constraint."
   ]
 }
-```

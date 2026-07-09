@@ -204,7 +204,8 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     thinking_tokens         INTEGER DEFAULT 0,
     shadow_cost_haiku_usd   REAL,
     shadow_cost_sonnet_usd  REAL,
-    prompt_text             TEXT
+    prompt_text             TEXT,
+    ticker                  TEXT
 )
 """
 
@@ -907,7 +908,8 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                    duration_secs, status="success", error_message=None,
                    retried=False, truncated=False, retry_budget=None,
                    thinking_tokens=0, shadow_cost_haiku_usd=None,
-                   shadow_cost_sonnet_usd=None, prompt_text=None):
+                   shadow_cost_sonnet_usd=None, prompt_text=None,
+                   ticker=None):
     """
     Writes one audit row per call_llm() invocation.
     cost_usd computed at insert from config.MODEL_PRICING - stored
@@ -930,8 +932,8 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                      cost_usd, status, error_message,
                      retried, truncated, retry_budget,
                      thinking_tokens, shadow_cost_haiku_usd,
-                     shadow_cost_sonnet_usd, prompt_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     shadow_cost_sonnet_usd, prompt_text, ticker)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run_id, datetime.now().isoformat(), call_type,
@@ -940,7 +942,7 @@ def write_llm_call(run_id, call_type, model_requested, model_used,
                     cost_usd, status, error_message,
                     int(retried), int(truncated), retry_budget,
                     thinking_tokens, shadow_cost_haiku_usd,
-                    shadow_cost_sonnet_usd, prompt_text,
+                    shadow_cost_sonnet_usd, prompt_text, ticker,
                 ),
             )
     except Exception as e:

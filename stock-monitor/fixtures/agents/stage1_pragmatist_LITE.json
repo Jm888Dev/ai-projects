@@ -1,17 +1,14 @@
-```json
 {
   "persona": "pragmatist",
   "ticker": "LITE",
-  "direction": "HOLD",
-  "confidence": 2,
-  "statistical_anchor": "LITE is +0.55% on 0.82x average volume in a +4 session streak, trading 6.99% below its 10-day high of $1029.15 and 65% into its recent range. Price is above MA50 ($903.34) but lacks conviction volume to sustain momentum. The move is noise-driven, not conviction-driven.",
-  "volume_assessment": "Volume is 5.25M shares at 0.82x the 30-day average — below-average conviction on a positive day. This is thin-tape noise masquerading as upside. A genuine breakout or thesis activation would show volume expansion, not contraction. The 0.55% gain is not backed by institutional accumulation signal.",
-  "trend_assessment": "LITE is in a short-term uptrend: +7.6% over 3 days, +16.49% over 5 days, with a 4-session winning streak. However, price is 6.99% below the 10-day high, indicating momentum is already exhausting at the top of the recent range (0.65 position). The streak is real but the volume is not. This is a momentum exhaustion setup, not a breakout confirmation.",
-  "regime_context": "Macro regime is benign: Fed paused, 10Y stable at 4.2%, VIX at 16.15 (normal), no geopolitical escalation, no new export controls announced. The entire chain (NVDA +0.24%, TSM +0.15%, AVGO -0.22%) is moving sideways on normal volume. Semiconductor sector (SMH +0.23%) shows no conviction. In a stable-to-rising rate environment with no new AI architecture announcements, photonics infrastructure bets lack near-term catalyst. LITE is a downstream bet on upstream health — NVDA, TSM, and AVGO are all flat or negative on normal volume, signaling no thesis acceleration.",
+  "direction": "REDUCE",
+  "confidence": 3,
+  "statistical_anchor": "Price at $707.1 sits 20.4% below the 50-day MA ($888.78) and at the 0.05 extreme of its recent range following a -11.74% 5-day drawdown; today's +2.51% gain lacks conviction with volume at only 0.44x the 30-day average, signaling mean-reversion noise rather than trend reversal.",
+  "volume_assessment": "Low conviction (0.44x average). The daily price advance is unsupported by institutional flow, making the move statistically likely to be transient tape noise rather than a sustainable accumulation phase.",
+  "trend_assessment": "Short-term momentum is decisively down (-3.3% over 3 days, -11.74% over 5 days). Price has collapsed below the 50-day MA and is at the absolute bottom of its recent range (position 0.05). Momentum is exhausted on the downside with no reversal confirmation.",
+  "regime_context": "VIX at ~16.9 indicates a normal volatility regime where technical breakdowns in individual names are not masked by systemic fear. In this environment, stocks trading significantly below their MA50 without volume support typically continue to drift lower or consolidate until structural support is tested.",
   "watch_items": [
-    "LITE closes below MA50 ($903.34) on elevated volume (>1.2x average) — signals momentum break and potential capitulation",
-    "NVDA falls below $210 or TSM falls below $435 on elevated volume — upstream thesis integrity failure, kills downstream LITE bet",
-    "LITE sustains price above $980 for 3+ consecutive sessions on volume >1.0x average — would upgrade to ACCUMULATE; current move is not that signal"
+    "Volume expanding above 1.5x the 30-day average on a daily close above $725",
+    "Price reclaiming and holding above the 50-day MA ($888.78)"
   ]
 }
-```

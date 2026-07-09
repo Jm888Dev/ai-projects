@@ -8,6 +8,7 @@
 #   python tools/slm_benchmark.py --mode realistic       # real data package
 #   python tools/slm_benchmark.py --max-tokens 800       # stress test output
 #   python tools/slm_benchmark.py --size large --mode realistic --max-tokens 800
+#   python tools/slm_benchmark.py --schema bull --size xl --max-tokens 3600
 #
 # Results logged to slm_benchmarks table in prices.db.
 # Run summary printed to terminal at end.
@@ -356,8 +357,10 @@ def build_synthetic_prompt(size_label):
       small  — Layer 1 only (price + instruction)
       medium — Layers 1-4 (price + thesis + chain + portfolio)
       large  — Layers 1-6 (full current data package)
-      xl     — Layers 1-6 + RSS feed headlines (Day 21 simulation)
-      xxl    — Layers 1-6 + feeds + RAG chunks (Day 20+21 simulation)
+      xl     — Real captured stage1_pragmatist prompt from llm_calls
+               (falls back to synthetic Layers 1-6 + feeds if no capture exists)
+      xxl    — Real captured stage3_meta_agent prompt from llm_calls
+               (falls back to synthetic Layers 1-6 + feeds + RAG if no capture exists)
 
     Why layered instead of padded?
     Padding with repeated keywords produces unrealistic attention patterns.
@@ -470,7 +473,7 @@ def build_realistic_prompt():
               f"— falling back to synthetic large prompt.")
         return build_synthetic_prompt("large"), "large"
 
-def load_captured_prompt(call_type_prefix, run_id=None):
+def load_captured_prompt(call_type_prefix, run_id=None, ticker=None):
     """
     Loads a real captured prompt from llm_calls.prompt_text instead of
     building synthetic content. This is the honest alternative to
@@ -478,12 +481,13 @@ def load_captured_prompt(call_type_prefix, run_id=None):
     content at real token weight, not a guess at what Day 20/21
     content might look like.
 
-    call_type_prefix: matches call_type using LIKE — e.g. 'stage1_pragmatist'
-                       matches 'stage1_pragmatist' exactly (no wildcard needed
-                       since call_type doesn't include ticker for stage1 rows
-                       in llm_calls — only in the analysis table).
-    run_id:            specific run to pull from. None = most recent capture
-                       for this call_type_prefix.
+    call_type_prefix: matches call_type exactly — e.g. 'stage1_pragmatist'.
+    run_id:           specific run to pull from. None = most recent capture
+                      for this call_type_prefix.
+    ticker:           filter by ticker column — ensures the loaded prompt is
+                      for the correct instrument. None = no ticker filter
+                      (used for portfolio-level calls like stage3_meta_agent
+                      and translator, which store ticker='portfolio').
 
     Returns (prompt_text, actual_input_tokens) or (None, None) if no
     matching row exists yet — caller must capture a live run first.
@@ -497,10 +501,11 @@ def load_captured_prompt(call_type_prefix, run_id=None):
                     FROM llm_calls
                     WHERE call_type = ? AND run_id = ?
                       AND prompt_text IS NOT NULL
-                    ORDER BY input_tokens DESC
+                      AND (? IS NULL OR ticker = ?)
+                    ORDER BY rowid DESC
                     LIMIT 1
                     """,
-                    (call_type_prefix, run_id),
+                    (call_type_prefix, run_id, ticker, ticker),
                 ).fetchone()
             else:
                 row = conn.execute(
@@ -509,10 +514,11 @@ def load_captured_prompt(call_type_prefix, run_id=None):
                     FROM llm_calls
                     WHERE call_type = ?
                       AND prompt_text IS NOT NULL
-                    ORDER BY input_tokens DESC
+                      AND (? IS NULL OR ticker = ?)
+                    ORDER BY rowid DESC
                     LIMIT 1
                     """,
-                    (call_type_prefix,),
+                    (call_type_prefix, ticker, ticker),
                 ).fetchone()
 
             if row is None:
@@ -994,7 +1000,7 @@ def main():
         "--max-tokens",
         type=int,
         default=1200,
-        help="Max output tokens per call (default: 400)"
+        help="Max output tokens per call (default: 1200)"
     )
     parser.add_argument(
         "--models",
@@ -1086,15 +1092,30 @@ def main():
             if s == "xl":
                 # xl = real Stage 1 prompt, largest agent (pragmatist)
                 # from the most recent live capture run
-                prompt, actual_tokens = load_captured_prompt("stage1_pragmatist")
+                schema_to_call_type = {
+                    "bull":       "stage1_bull",
+                    "bear":       "stage1_bear",
+                    "black_swan": "stage1_black_swan",
+                    "pragmatist": "stage1_pragmatist",
+                    "contrarian": "stage2_contrarian",
+                    "meta_agent": "stage3_meta_agent",
+                }
+                # Load the captured prompt for the specific agent under test.
+                # Previously always loaded stage1_pragmatist regardless of
+                # --schema flag — caused persona mismatch (Layer 1 said "as a
+                # Pragmatist analyst") and loaded the wrong TARGET TICKER for
+                # every non-pragmatist schema test. Now aligned: bull test loads
+                # bull capture, bear test loads bear capture, etc.
+                call_type_key = schema_to_call_type.get(args.schema, "stage1_pragmatist")
+                prompt, actual_tokens = load_captured_prompt(call_type_key, ticker=EXPECTED_TICKER)
                 if prompt is None:
                     print(f"  [WARN] No captured prompt found for "
-                          f"'stage1_pragmatist' — run a live pipeline "
+                          f"'{call_type_key}' — run a live pipeline "
                           f"session first to populate llm_calls.prompt_text. "
                           f"Falling back to synthetic xl.")
                     prompts_to_run.append((build_synthetic_prompt("xl"), "xl"))
                 else:
-                    print(f"  [xl] Using captured stage1_pragmatist prompt "
+                    print(f"  [xl] Using captured {call_type_key} prompt "
                           f"({actual_tokens} input tokens)")
                     # Contrarian benchmark needs real Stage 1 outputs appended —
                     # the production system prompt expects four agent outputs to audit
@@ -1108,7 +1129,7 @@ def main():
                 # xxl = real Stage 3 Meta-Agent prompt — the dominant
                 # cost driver and the size that matters most for the
                 # heavy tier sovereign routing decision
-                prompt, actual_tokens = load_captured_prompt("stage3_meta_agent")
+                prompt, actual_tokens = load_captured_prompt("stage3_meta_agent", ticker="portfolio")
                 if prompt is None:
                     print(f"  [WARN] No captured prompt found for "
                           f"'stage3_meta_agent' — run a live pipeline "

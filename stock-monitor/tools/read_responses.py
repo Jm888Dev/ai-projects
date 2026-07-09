@@ -7,7 +7,7 @@ rows = c.execute("""
     SELECT model, prompt_size, decode_mode, json_valid,
            direction_valid, ticker_mismatch, raw_response
     FROM slm_benchmarks
-    ORDER BY id DESC LIMIT 8
+    ORDER BY id DESC LIMIT 2
 """).fetchall()
 
 for r in rows:

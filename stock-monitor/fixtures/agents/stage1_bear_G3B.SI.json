@@ -1,16 +1,14 @@
-```json
 {
   "persona": "bear",
   "ticker": "G3B.SI",
   "direction": "REDUCE",
-  "confidence": 3,
-  "primary_argument": "G3B.SI is rising while its thesis-integrity signal—divergence from US tech weakness—is broken, and the Singapore banking sector it anchors on faces structural headwinds from MAS policy tightening and regional economic slowdown that the current +0.99% move masks.",
-  "supporting_evidence": "G3B.SI up 0.99% today while the semiconductor chain (NVDA +0.24%, TSM +0.15%, SMH +0.23%) shows muted upside, suggesting the 'cushioning' thesis is not functioning as designed; the thesis explicitly flags 'G3B.SI falling while US tech is rising' as a divergence signal—this has 'happened recently' per thesis context, indicating the diversification benefit has already eroded; USD/SGD at 1.34 (stable) removes the currency hedge argument that was supposed to provide additional return cushioning when SGD strengthens.",
-  "key_assumption": "The bull case assumes Singapore banking dividends (DBS, OCBC, UOB) remain stable and that G3B.SI provides genuine portfolio cushioning during US tech volatility. This is fragile because: (1) MAS monetary policy is data-dependent and tightening signals have not been ruled out; (2) regional credit cycles are tightening as China slowdown pressures Southeast Asia; (3) the recent divergence breakdown shows G3B.SI no longer moves differently from US tech—it is now a correlated asset, not a hedge.",
-  "regime_sensitivity": "This bear call strengthens in a high_vix crisis regime. If VIX spikes above 20, G3B.SI will likely fall in sympathy with US equities (thesis divergence already broken), and Singapore banking sector earnings will compress as credit spreads widen and loan growth slows. In low_vix, the bear case weakens temporarily because dividend yield supports the price, but the structural loss of diversification benefit remains.",
+  "confidence": 4,
+  "primary_argument": "G3B.SI is exhibiting momentum exhaustion at its 10-day high with negligible upside participation while the core portfolio chain rallies, proving the diversification thesis is structurally fragile and vulnerable to immediate mean reversion.",
+  "supporting_evidence": "Price sits exactly at the 10-day high ($5.47) with a zero-session momentum streak and only +0.33% daily gain despite +2.97% to +5.66% surges across NVDA, AVGO, SMH, and QQQ; volume confirms distribution rather than accumulation at 424,798 shares (1.25x the 30-day average), showing a complete lack of institutional conviction at resistance; Singapore police seized a $42M property in an Nvidia chip smuggling probe, signaling escalating regulatory friction and capital control risks that directly threaten the stability of the local banking sector underpinning this ETF.",
+  "key_assumption": "The bull assumes SGD-denominated banking dividends provide reliable portfolio cushioning against US volatility, but ignores that MAS policy shifts or capital flight pressures will compress DBS/OCBC/UOB net interest margins and force correlation convergence during stress events, destroying the diversification premise.",
+  "regime_sensitivity": "Strengthens in a high_vix crisis regime because global liquidity contraction forces SGD assets and US tech to sell off simultaneously, while MAS may be compelled to intervene or cut rates, collapsing the dividend yield thesis.",
   "watch_items": [
-    "MAS signals a rate hike or hawkish guidance at next policy meeting; this would compress Singapore bank net interest margins and trigger a 2-3% selloff in G3B.SI as dividend yield expectations reset downward.",
-    "G3B.SI correlation to QQQ rises above 0.75 over the next 10 trading sessions (currently implied to be lower); this would confirm the thesis-integrity signal is permanent, not temporary, and G3B.SI is now a correlated tech play, not a stability anchor—triggering a re-evaluation of position sizing."
+    "G3B.SI closes below $5.28 (10-day low) on volume exceeding 600,000 shares",
+    "SGD/USD breaks below 1.32 or MAS announces emergency banking rate intervention"
   ]
 }
-```

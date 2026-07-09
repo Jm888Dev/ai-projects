@@ -1,16 +1,14 @@
-```json
 {
   "persona": "bull",
   "ticker": "TSM",
   "direction": "ACCUMULATE",
   "confidence": 4,
-  "primary_argument": "TSMC is the irreplaceable production bottleneck for every advanced AI chip in existence — CoWoS capacity utilization is at structural ceiling, expansion timelines are accelerating, and the entire Blackwell supply chain depends on TSM's ability to scale faster than demand.",
-  "supporting_evidence": "TSM is up 4.83% over 3 days and trading at 0.89 position in its 10-day range ($407.8–$445.65), only 0.95% below the 10-day high, signaling sustained momentum into the production ceiling thesis. The chain is healthy: NVDA (+0.24%), LITE (+0.55%), and SMH (+0.23%) all move in concert, confirming downstream photonics integration demand is real and pulling through TSMC's capacity. VIX at 16.15 in normal regime means risk-off volatility is not suppressing semiconductor upside — the move is driven by genuine demand signal, not short covering.",
-  "key_assumption": "Hyperscaler CapEx commitment to AI infrastructure remains unbroken and CoWoS bookings continue to signal production-constrained demand (not demand destruction). If hyperscalers begin to defer or cancel Blackwell orders, or if TSMC's guidance on AI revenue mix shows saturation, the entire bull case collapses.",
-  "regime_sensitivity": "In a low-VIX regime (current state at 16.15), this call strengthens — TSM accumulation is conviction-based, not panic-driven. If VIX spikes above 25, the thesis does not change operationally, but market liquidity for TSM could tighten and price discovery may overshoot downside temporarily before mean-reverting to the structural capacity constraint. The bull case survives high-VIX; it only accelerates accumulation urgency if the dip is shallow.",
+  "primary_argument": "TSMC's irreplaceable CoWoS capacity constraint has become the definitive physical bottleneck for AI infrastructure scaling, positioning it as the ultimate leverage play on hyperscaler CapEx execution as demand rapidly outpaces global fab supply.",
+  "supporting_evidence": "Price is trading at $436.98, firmly holding above the 50-day moving average of $421.86 despite a recent pullback, confirming structural support and creating an optimal accumulation entry before the next demand wave. Upstream demand anchor NVDA is surging +4.20% today while the semiconductor ETF SMH rallies +2.97%, signaling accelerating capital deployment that directly flows into TSMC's advanced packaging bookings. Current geopolitical silence on the Taiwan Strait and stable US-China export controls eliminate immediate regulatory overhang, allowing the fundamental AI hardware scarcity thesis to dominate price discovery.",
+  "key_assumption": "Hyperscalers will sustain multi-billion dollar data center CapEx cycles without interruption, forcing them to prioritize TSMC's CoWoS capacity and N2/A16 node leadership over all alternative manufacturing options.",
+  "regime_sensitivity": "In a low VIX regime, TSM benefits from cheap capital fueling AI infrastructure builds; if VIX spikes to high_vix (>25), the physical scarcity of advanced packaging and non-substitutable process nodes would trigger an aggressive re-rating as institutions scramble for tangible AI hardware exposure rather than fleeing to cash.",
   "watch_items": [
-    "TSMC next earnings guidance shows AI revenue mix declining below 40% of total or CoWoS capacity utilization drops below 85% — signals demand destruction, not supply constraint",
-    "US export controls announcement targeting Taiwan semiconductor manufacturing or advanced node restrictions — geopolitical kill switch that bypasses all supply chain logic and forces regulatory exit"
+    "CoWoS capacity utilization drops below 70% for two consecutive quarters, signaling demand deceleration or successful diversification by chipmakers.",
+    "US government imposes a complete ban on TSMC's US-manufactured EUV equipment exports, physically halting advanced node production."
   ]
 }
-```

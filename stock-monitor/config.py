@@ -30,7 +30,7 @@ from pathlib import Path  # builds fixture and env paths for shared/utils.py wra
 # from fixtures/normal_day.json.
 # False = fixture prices — zero cost, instant, no network needed
 # True  = live yfinance fetch — real prices, real session
-USE_LIVE_DATA = False
+USE_LIVE_DATA = True
 
 # USE_LIVE_AGENTS controls whether agents call the Claude API
 # or load pre-captured outputs from fixtures/agents/.
@@ -127,14 +127,14 @@ ANALYST_TEMPERATURE = 0.2
 # instrument it is reasoning about
 # Values: equity, etf, index, fx, yield
 TICKERS = {
-    "NVDA":   "equity",  # Demand anchor — Nvidia
-    "AVGO":   "equity",  # Network gatekeeper — Broadcom
-    "LITE":   "equity",  # Photonics pure-play — Lumentum
-    "TSM":    "equity",  # Production floor — TSMC
-    "QQQ":    "etf",     # Nasdaq-100 ETF
-    "SMH":    "etf",     # Semiconductor ETF
-    "G3B.SI": "etf",     # STI ETF — local anchor
-    "^VIX":   "index",   # Fear gauge — macro signal
+    "NVDA":   "equity",
+    "AVGO":   "equity",
+    "LITE":   "equity",
+    "TSM":    "equity",
+    "QQQ":    "etf",
+    "SMH":    "etf",
+    "G3B.SI": "etf",
+    "^VIX":   "index",
 }
 
 # ── DATABASE ───────────────────────────────────────────────
@@ -634,17 +634,19 @@ ENV_PATH           = Path(__file__).parent / ".env"
 # True  = route all agent calls to local Ollama (sovereign, $0.00)
 USE_SLM  = False
 
-# Active SLM tier — only relevant when USE_SLM=True
-# "fast"  = phi4-mini + gemma4:e4b  — dev runs, quick iteration
-# "heavy" = phi4-mini + qwen3.6 + gemma4:26b — sovereign production
-SLM_MODE = "fast"
 
-# ── SLM MODEL REGISTRY ─────────────────────────────────────
-# Ollama model tags — must match exactly what ollama list shows.
-# Change here to swap models — zero code changes needed elsewhere.
-SLM_FAST_MODEL  = "phi4-mini"         # fast tier default — Stage 1 + Translator
-SLM_HEAVY_MODEL = "qwen3.6:35b-a3b"   # heavy tier Stage 2 — deep reasoning
-SLM_HEAVY_MODEL_STAGE3 = "gemma4:26b" # heavy tier Stage 3 — sovereign Meta-Agent
+# Master SLM switch
+# False = use Anthropic API tiers (existing behaviour, unchanged)
+# True  = route all agent calls to local Ollama (sovereign, $0.00)
+# When True, USE_LIVE_AGENTS is implied True regardless of its own value.
+# SLM_STAGE_MODELS (below) is the sole routing source of truth — the old
+# two-tier fast/heavy system (SLM_MODE, SLM_FAST_MODEL, SLM_HEAVY_MODEL,
+# SLM_HEAVY_MODEL_STAGE3) was deleted Day 25. It was dead code that had
+# silently caused every SLM call to route to phi4-mini regardless of
+# stage — see sm_call_llm() history in stock_monitor.py for the full
+# story. Confirmed via full-codebase search: nothing else referenced
+# these four names, so deletion was safe with no other call sites to fix.
+USE_SLM  = True
 
 # Per-stage SLM model assignment
 # Controls which SLM model handles each pipeline stage.
@@ -709,17 +711,17 @@ SLM_STAGE_MODELS = {
     # Thin Stage 1 output propagates as thin input to every downstream stage.
     "stage1": {
         # qwen3.6 selected: richest schema-guided reasoning in the full benchmark
-        # dataset. reasoning_trace populates spontaneously at xl 2400 — model
+        # dataset. reasoning_raw_text populates spontaneously at xl 2400 — model
         # acknowledges counter-thesis before committing to direction. Evidence →
         # reason → conclude field ordering working as designed. Minimum 2400 tokens
         # required for schema closure at xl — 1800 hits ceiling (Day 23 confirmed).
-        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 2400},
+        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 6000},
 
         # gpt-oss:20b selected: speed leader across all sizes and modes. Clean schema
         # closure at xl 1800 tokens. Content shallower than qwen3.6 but adequate for
         # Stage 1 where the Contrarian's epistemic audit will challenge whatever is
         # produced. Used when qwen3.6 is unavailable or times out.
-        "fallback": {"model": "gpt-oss:20b",      "mode": "schema_guided", "max_tokens": 1800},
+        "fallback": {"model": "gpt-oss:20b",      "mode": "schema_guided", "max_tokens": 4800},
     },
 
     # ── STAGE 2 — ContrarianOutput
@@ -739,14 +741,13 @@ SLM_STAGE_MODELS = {
         # Hidden consensus, shared blind spot, and strongest challenge were
         # logically coherent across fields with no semantic drift. deepseek-r1:14b
         # and gpt-oss:20b both produced shallower audits closer to Bear restatements.
-        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 3600},
+        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 6000},
 
-        # gpt-oss:20b selected: functionally adequate ContrarianOutput — correctly
-        # identified CapEx linchpin consensus and energy cost risk angle. Shallower
-        # than qwen3.6 but structurally sound. Preferred over deepseek-r1:14b which
-        # produced Bear-equivalent output rather than a genuine epistemic audit.
-        # Used when qwen3.6 is unavailable.
-        "fallback": {"model": "gpt-oss:20b",      "mode": "schema_guided", "max_tokens": 3600},
+        # No SLM fallback exists — see comment above. Do not populate this
+        # with gpt-oss:20b or any other benchmarked model without new
+        # evidence that model resists contrarian drift. Cloud is NOT
+        # auto-substituted here either — see sm_call_llm() Stage 2 behavior.
+        "fallback": None,
     },
 
     # ── STAGE 3 — MetaAgentOutput
@@ -771,7 +772,19 @@ SLM_STAGE_MODELS = {
         # Richer output if runtime is acceptable. Used when gpt-oss:20b is unavailable.
         "fallback": {"model": "qwen3.6:35b-a3b", "mode": "schema_guided", "max_tokens": 6000},
     },
-
+    # ── TRANSLATOR — plain English rewrite of Meta-Agent output
+    # ADDED DAY 25 — UNTESTED. No benchmark data exists for Translator under
+    # SLM. Decision (Day 25): route onto Stage 1's models rather than the
+    # lighter preprocessing tier — reasoning is that JSON-to-prose synthesis
+    # is closer to Stage 1 work than trivial preprocessing. Deliberate,
+    # pragmatic, WITHOUT benchmark evidence — flag whenever reviewing
+    # Translator output quality under SLM. Translator produces plain text,
+    # not JSON — no schema_dict is passed at the actual call site regardless
+    # of what these models support elsewhere.
+    "translator": {
+        "primary":  {"model": "qwen3.6:35b-a3b", "mode": "prompt_only", "max_tokens": 6000},
+        "fallback": {"model": "gpt-oss:20b",      "mode": "prompt_only", "max_tokens": 4800},
+    },
     # ── PREPROCESSING — short structured tasks only
     # Prompt-only. Used for summarisation, classification, and other short
     # structured tasks that do not require schema-guided decoding or deep

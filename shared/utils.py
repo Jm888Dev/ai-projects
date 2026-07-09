@@ -115,8 +115,20 @@ def extract_json(raw):
     try:
         parsed = json.loads(clean)
         return parsed, None
-    except json.JSONDecodeError as e:
-        return None, str(e)
+    except json.JSONDecodeError:
+        # First parse failed — attempt structural repair before giving up.
+        # Handles common SLM output errors: missing quotes around string
+        # values, trailing commas, unescaped characters.
+        # json-repair is conservative — it only fixes what it can infer
+        # unambiguously. If repair also fails, return the original error.
+        try:
+            from json_repair import repair_json
+            repaired = repair_json(clean, return_objects=True)
+            if repaired:
+                return repaired, None
+            return None, "JSON repair returned empty result"
+        except Exception as repair_err:
+            return None, f"JSON parse and repair both failed: {repair_err}"
 
 # ─────────────────────────────────────────────────────────────
 # OLLAMA LOCAL INFERENCE

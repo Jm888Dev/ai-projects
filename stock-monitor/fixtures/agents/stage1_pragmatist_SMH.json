@@ -1,16 +1,14 @@
-```json
 {
   "persona": "pragmatist",
   "ticker": "SMH",
   "direction": "HOLD",
-  "confidence": 2,
-  "statistical_anchor": "SMH up 0.23% on 0.95x average volume in a 3-session up streak, positioned at the 10-day high ($647.1). Price is 13.6% above the 50-day MA ($533.97), but volume conviction is absent — the move lacks the elevated volume signature needed to sustain breakout momentum. The data is neutral-to-slightly-positive but insufficient to warrant directional conviction.",
-  "volume_assessment": "Volume is 0.95x the 30-day average — below normal. The +0.23% move today is noise-level conviction. A 3-session up streak backed by subaverage volume suggests exhaustion risk rather than building momentum. For SMH to sustain upside, the next session requires volume >1.1x average to confirm conviction; absence of that signature makes the current position fragile.",
-  "trend_assessment": "SMH is at the 10-day high (position in range = 1.0) with a 3-session up streak and +9.49% 5-day return. Price is well above the 50-day MA. This is textbook overbought positioning in the short term. The 200-day MA is unavailable, limiting longer-horizon context. Momentum is building on the chart, but the absence of volume confirmation and the extreme position in the recent range (at the high, not approaching it) suggest mean-reversion risk over the next 3-5 sessions.",
-  "regime_context": "VIX at 16.15 (normal regime), 10Y UST stable at 4.2%, USD/SGD stable at 1.34. No macro tailwinds or headwinds this week. The semiconductor sector benefits from stable rates (no compression of multiples), but the absence of new AI research announcements, hyperscaler CapEx updates, or positive regulatory signals removes the narrative fuel that typically drives SMH continuation. In a normal VIX regime with no new catalysts, mean-reversion and profit-taking are statistically more likely than breakout extension.",
+  "confidence": 3,
+  "statistical_anchor": "Price rebounded +2.97% to $593.0, reclaiming the 50-day MA at $585.78 after a -4.43% five-day drawdown, but remains -9.59% below the 10-day high of $655.89.",
+  "volume_assessment": "The +2.97% daily gain occurred on 0.88x average volume, classifying this move as thin tape noise rather than conviction-driven accumulation. Low-volume bounces in a confirmed short-term downtrend historically lack durability and frequently fade into consolidation or retest support.",
+  "trend_assessment": "Short-term trend remains down_short_term (-1.87% over 3 days) with price at the lower extreme of its recent range (position 0.16). Momentum has paused but not reversed; the bounce is mechanically driven by oversold conditions and MA reclamation rather than exhaustion of selling pressure.",
+  "regime_context": "VIX at 16.9 and stable 10Y UST at 4.2% establish a normal volatility regime with no macro catalysts this week. This environment historically favors technical mean-reversion within established ranges for high-beta sector ETFs, suppressing decisive directional breakouts until volume or trend structure shifts.",
   "watch_items": [
-    "Volume signature on next session: if SMH closes with volume >1.1x 30-day average AND closes above $650, the breakout gains statistical durability. If volume remains <1.0x average, treat the current rally as exhaustion noise.",
-    "SMH vs NVDA divergence: NVDA up 0.24% vs SMH up 0.23% — no divergence signal. Monitor if SMH underperforms NVDA by >0.5% in next 2 sessions, which would flag broader semiconductor weakness and warrant a REDUCE signal."
+    "Daily close above $600 on >1.2x average volume to confirm trend reversal",
+    "Daily close below $585 (50-day MA) to resume short-term downside risk and invalidate support"
   ]
 }
-```

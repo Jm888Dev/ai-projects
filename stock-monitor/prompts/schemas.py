@@ -3,47 +3,76 @@
 # Production output contracts for the Stock Monitor six-agent pipeline.
 # Each class defines the exact shape of one agent's JSON output.
 #
-# WHY THIS FILE EXISTS
-# --------------------
-# Previously, the pipeline relied on prompt instructions alone to produce
-# valid JSON — "return only a valid JSON object, use exactly this schema."
-# That is Level 1 structured output: instruction-based, ~80-95% reliable.
+# v1.1 CHANGES (this version)
+# ----------------------------
+# 1. reasoning_trace renamed to reasoning_raw_text and moved to the FIRST
+#    reasoning-phase field (immediately after persona/ticker identity, before
+#    any evidence field). Rationale: constrained decoding fills fields in
+#    declared order. Under v1.0 ordering, reasoning_trace sat near the end —
+#    meaning the model had already committed to direction/confidence before
+#    it ever wrote a scratchpad. That is backwards: conclude-then-rationalize
+#    instead of reason-then-conclude. Moving it to the front forces genuine
+#    reasoning before the FSM locks in a conclusion.
 #
-# These Pydantic models enable Level 3 structured output: constrained
-# decoding. When passed to Ollama's `format` parameter, the inference
-# engine builds a finite state machine from the schema and masks invalid
-# tokens at generation time. The model physically cannot produce output
-# that violates the contract.
+# 2. raw_data_citations: Optional[List[str]] added to every schema.
+#    Requires (via prompt instruction, NOT a Pydantic min_length constraint)
+#    at least 2 verbatim numeric data points from the input, plus at least
+#    1 citation from the middle-layer data (chain summary / portfolio
+#    relationships — the zone Item A designated as accepted attention loss).
 #
-# FIELD ORDER CONVENTION — evidence → reason → conclude
-# ------------------------------------------------------
-# Fields are ordered to match the model's natural reasoning sequence.
-# Evidence fields come first (what the data shows).
+#    WHY THIS IS NOT A HARD-REQUIRED FIELD:
+#    A hard min_length=2 constraint would recreate the exact failure mode
+#    reasoning_raw_text was moved to the front to prevent. If the input
+#    genuinely does not contain 2 clean numeric data points (thin dataset,
+#    quiet news day), a required field with a minimum count gives the model
+#    no legal way to say so — it is forced to invent a second number to
+#    close the JSON object. That is schema-forced hallucination, the same
+#    problem the Day 21 FSM finding named.
+#
+#    SOFT ENFORCEMENT INSTEAD: the field is Optional with no length floor.
+#    The system prompt instructs the model to supply 2+ citations. If fewer
+#    exist, the model populates what it honestly has (0 or 1 items) and
+#    uses the existing data_quality_flag field to say why. This reuses
+#    infrastructure that already exists for exactly this purpose — one
+#    mechanism for "insufficient data," not two competing ones.
+#
+#    Same soft treatment applies to the middle-layer citation requirement.
+#
+#    OPEN ITEM (Section 10, not built this session): a detection process
+#    that tracks data_quality_flag fire rate per ticker/data source across
+#    runs, to distinguish a systematically broken source from normal
+#    graceful degradation on a given day.
+#
+# FIELD ORDER CONVENTION — identity → reasoning_raw_text → evidence → reason → conclude
+# ----------------------------------------------------------------------------------------
+# Identity fields (persona, ticker) come first — they cost the model
+# nothing to fill (persona is a Literal, ticker is echoed from the prompt)
+# and preserve the ticker-grounding context established Day 24.
+# reasoning_raw_text comes immediately after identity — before the model
+# has written any evidence or committed to any conclusion.
+# Evidence fields come next (what the data shows).
 # Reasoning fields come next (what that evidence means).
 # Conclusion fields come last (the committed call).
-# This ordering is deliberate — constrained decoding fills fields in the
-# order they appear in the class. We want the model to ground itself in
-# evidence before committing to a direction.
 #
-# OPTIONAL FIELDS — data_quality_flag and reasoning_trace
-# --------------------------------------------------------
-# Every schema includes two optional fields:
-#
-# reasoning_trace: Optional[str]
-#   A scratchpad the model can use before committing to conclusions.
-#   Positioned in the reasoning phase so the model can think before
-#   it concludes. Especially valuable for SLMs with thinking modes —
-#   gives thinking tokens a productive outlet instead of burning
-#   the output budget before valid JSON appears.
+# OPTIONAL FIELDS — reasoning_raw_text, raw_data_citations, data_quality_flag
+# -----------------------------------------------------------------------------
+# reasoning_raw_text: Optional[str]
+#   A scratchpad the model uses before committing to conclusions. Now the
+#   first reasoning-phase field in every schema. Especially valuable for
+#   SLMs with thinking modes — gives thinking tokens a productive outlet
+#   instead of burning the output budget before valid JSON appears.
 #   Value is stored in llm_calls for audit purposes.
+#
+# raw_data_citations: Optional[List[str]]
+#   Verbatim numeric data points lifted from the input. Soft-enforced via
+#   prompt instruction (2+ total, 1+ from the middle layer) — see above.
 #
 # data_quality_flag: Optional[str]
 #   A field the model can populate when input data is insufficient,
-#   corrupted, or missing. Prevents the model from fabricating confident
+#   corrupted, or missing — including when raw_data_citations cannot meet
+#   the requested count. Prevents the model from fabricating confident
 #   output when the honest answer is "I don't have enough data."
 #   A model that cannot say "I don't know" is a model that hallucinates.
-#   This field is the schema-level equivalent of the pipeline's graceful
-#   degradation principle.
 #
 # HOW TO USE THESE SCHEMAS
 # ------------------------
@@ -65,6 +94,10 @@
 # -----
 # - Never change a field name without updating the pipeline function
 #   that reads it. These are the contracts the database depends on.
+#   v1.1 renames reasoning_trace -> reasoning_raw_text: every downstream
+#   parser referencing the old name must be updated in the same session
+#   this file is deployed. A rename does not raise a Pydantic error on
+#   the old attribute access — it silently returns None. Verify by hand.
 # - Never make a required field optional without understanding what
 #   downstream code assumes about its presence.
 # - Translator is intentionally absent — it produces plain text, not JSON.
@@ -76,7 +109,7 @@ from typing import Literal, Optional, List, Dict
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 SCHEMA — THE BULL
-# Fields ordered: evidence → reason → conclude
+# Fields ordered: identity → reasoning_raw_text → evidence → reason → conclude
 # ─────────────────────────────────────────────────────────────
 
 class BullOutput(BaseModel):
@@ -85,20 +118,25 @@ class BullOutput(BaseModel):
     Direction is locked to ACCUMULATE or HOLD — the Bull cannot hedge.
     Constrained decoding masks REDUCE and EXIT tokens entirely.
     """
-    # IDENTITY — who produced this output and for which ticker
+    # IDENTITY — who produced this output and for which ticker (filled first,
+    # near-zero cost, preserves ticker grounding per Day 24 fix)
     persona: Literal["bull"]
     ticker: str
 
-    # EVIDENCE — what the data shows (filled first, before any conclusion)
+    # REASONING SCRATCHPAD — filled before any evidence or conclusion field,
+    # so the model reasons before the FSM locks it into a structured answer
+    reasoning_raw_text: Optional[str] = None  # free-form thinking space, stored in llm_calls for audit
+
+    # EVIDENCE — what the data shows
     supporting_evidence: str  # two to three specific data points with numbers cited
+    raw_data_citations: Optional[List[str]] = None  # verbatim numeric points; soft target 2+, 1+ from middle layer
 
     # REASONING — what the evidence means in context
     key_assumption: str        # the single assumption the entire bull case depends on
     regime_sensitivity: str    # whether the call changes in different VIX regimes
-    reasoning_trace: Optional[str] = None  # optional scratchpad before committing to conclusion
 
-    # QUALITY GATE — flag before concluding if data is poor
-    data_quality_flag: Optional[str] = None  # populated if input data is insufficient or suspect
+    # QUALITY GATE — flag before concluding if data is poor, or if citation target unmet
+    data_quality_flag: Optional[str] = None  # populated if input data is insufficient, suspect, or citations fell short
 
     # CONCLUSION — the committed call, produced after evidence and reasoning
     primary_argument: str                              # one committed bull thesis sentence
@@ -109,7 +147,7 @@ class BullOutput(BaseModel):
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 SCHEMA — THE BEAR
-# Fields ordered: evidence → reason → conclude
+# Fields ordered: identity → reasoning_raw_text → evidence → reason → conclude
 # ─────────────────────────────────────────────────────────────
 
 class BearOutput(BaseModel):
@@ -122,13 +160,16 @@ class BearOutput(BaseModel):
     persona: Literal["bear"]
     ticker: str
 
+    # REASONING SCRATCHPAD — before evidence/conclusion, same rationale as Bull
+    reasoning_raw_text: Optional[str] = None
+
     # EVIDENCE — stress-test data points cited before any conclusion
     supporting_evidence: str  # two to three specific data points with numbers cited
+    raw_data_citations: Optional[List[str]] = None  # soft target 2+, 1+ from middle layer
 
     # REASONING — what the evidence means and what the bull is getting wrong
     key_assumption: str        # the bull assumption the Bear believes is wrong or fragile
     regime_sensitivity: str    # whether the bear call strengthens in high_vix vs low_vix
-    reasoning_trace: Optional[str] = None
 
     # QUALITY GATE
     data_quality_flag: Optional[str] = None
@@ -142,7 +183,7 @@ class BearOutput(BaseModel):
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 SCHEMA — THE BLACK SWAN
-# Fields ordered: evidence → reason → conclude
+# Fields ordered: identity → reasoning_raw_text → evidence → reason → conclude
 # ─────────────────────────────────────────────────────────────
 
 class BlackSwanOutput(BaseModel):
@@ -156,20 +197,24 @@ class BlackSwanOutput(BaseModel):
        no supporting_evidence. The Black Swan's job is unmapped risk
        identification, not thesis building.
 
-    Field order is evidence-first: structural_fragility and underweighted_risk
-    (what already exists in the data) before unmapped_risk (the tail thesis).
+    Field order is evidence-first within the reasoning zone:
+    structural_fragility and underweighted_risk (what already exists in
+    the data) before unmapped_risk (the tail thesis).
     """
     # IDENTITY
     persona: Literal["black_swan"]
     ticker: str
 
+    # REASONING SCRATCHPAD
+    reasoning_raw_text: Optional[str] = None
+
     # EVIDENCE — structural weaknesses observed before naming the tail risk
     structural_fragility: str   # the underlying weakness that enables a non-linear shock
     underweighted_risk: str     # a known risk the market systematically misprices
+    raw_data_citations: Optional[List[str]] = None  # soft target 2+, 1+ from middle layer
 
     # REASONING — how a shock would propagate
     contagion_path: str         # which other portfolio tickers get hit and through what mechanism
-    reasoning_trace: Optional[str] = None
 
     # QUALITY GATE
     data_quality_flag: Optional[str] = None
@@ -183,7 +228,7 @@ class BlackSwanOutput(BaseModel):
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 1 SCHEMA — THE PRAGMATIST
-# Fields ordered: evidence → reason → conclude
+# Fields ordered: identity → reasoning_raw_text → evidence → reason → conclude
 # ─────────────────────────────────────────────────────────────
 
 class PragmatistOutput(BaseModel):
@@ -201,13 +246,16 @@ class PragmatistOutput(BaseModel):
     persona: Literal["pragmatist"]
     ticker: str
 
+    # REASONING SCRATCHPAD
+    reasoning_raw_text: Optional[str] = None
+
     # EVIDENCE — raw statistical observations, no narrative
     volume_assessment: str   # is the price move backed by conviction volume or thin tape?
     trend_assessment: str    # price relative to moving averages and recent range
+    raw_data_citations: Optional[List[str]] = None  # soft target 2+, 1+ from middle layer
 
     # REASONING — macro overlay applied to statistical baseline
     regime_context: str      # how the current macro regime affects this ticker historically
-    reasoning_trace: Optional[str] = None
 
     # QUALITY GATE
     data_quality_flag: Optional[str] = None
@@ -221,7 +269,7 @@ class PragmatistOutput(BaseModel):
 
 # ─────────────────────────────────────────────────────────────
 # STAGE 2 SCHEMA — THE CONTRARIAN
-# Fields ordered: evidence → reason → conclude
+# Fields ordered: identity → reasoning_raw_text → evidence → reason → conclude
 # ─────────────────────────────────────────────────────────────
 
 class ContrarianOutput(BaseModel):
@@ -242,15 +290,18 @@ class ContrarianOutput(BaseModel):
     persona: Literal["contrarian"]
     ticker: str
 
+    # REASONING SCRATCHPAD
+    reasoning_raw_text: Optional[str] = None
+
     # EVIDENCE — what the committee collectively produced
     hidden_consensus: str   # where Bull and Bear accidentally agree despite opposite biases
     shared_blind_spot: str  # the single assumption ALL FOUR agents made without questioning
                             # this is the most important field in this schema
+    raw_data_citations: Optional[List[str]] = None  # soft target 2+, 1+ from middle layer
 
     # REASONING — what the blind spot means and what it changes
     unasked_question: str    # the one question none of the four agents asked
     strongest_challenge: str # the most powerful challenge to the committee consensus
-    reasoning_trace: Optional[str] = None
 
     # QUALITY GATE
     data_quality_flag: Optional[str] = None
@@ -264,7 +315,9 @@ class ContrarianOutput(BaseModel):
 # ─────────────────────────────────────────────────────────────
 # STAGE 3 SUB-MODEL — TICKER DECISION
 # One block per ticker inside MetaAgentOutput
-# Fields ordered: evidence → reason → conclude
+# No persona/ticker identity block here — the ticker symbol is already
+# the dict key in the parent MetaAgentOutput.tickers field, so
+# reasoning_raw_text is this model's first field.
 # ─────────────────────────────────────────────────────────────
 
 class TickerDecision(BaseModel):
@@ -273,23 +326,27 @@ class TickerDecision(BaseModel):
     Defined as a separate sub-model so MetaAgentOutput can reference it
     as Dict[str, TickerDecision] — one block per ticker symbol.
 
-    Field order: tensions (evidence) → kill triggers (reasoning, derived
-    from analysis) → rationale and decision (conclusion).
+    Field order: reasoning_raw_text first (no identity fields exist here
+    to precede it) → tensions (evidence) → kill triggers (reasoning,
+    derived from analysis) → rationale and decision (conclusion).
 
     Kill triggers are positioned in the reasoning phase because they are
     derived from the analysis — they encode what conditions would change
     the decision, which is a reasoning output, not a conclusion.
     """
+    # REASONING SCRATCHPAD — first field; no identity fields precede it
+    # because the ticker symbol already lives as the dict key one level up
+    reasoning_raw_text: Optional[str] = None
+
     # EVIDENCE — where the five agents disagreed before the Meta-Agent decided
     key_tensions: str   # where agents disagreed most and how it was resolved
+    raw_data_citations: Optional[List[str]] = None  # soft target 2+, 1+ from middle layer
 
     # REASONING — pre-committed conditions derived from the analysis
     # Three types, always present, always in this order:
     kill_trigger_1: str  # price/technical trigger — specific, measurable, executable
     kill_trigger_2: str  # thesis integrity trigger — what specific event breaks the thesis
     kill_trigger_3: str  # macro regime trigger — what macro condition forces defensive posture
-
-    reasoning_trace: Optional[str] = None
 
     # QUALITY GATE
     data_quality_flag: Optional[str] = None
@@ -325,9 +382,9 @@ class MetaAgentOutput(BaseModel):
     vix_regime: Literal["low_vix", "normal", "high_vix", "crisis"]
 
     # EVIDENCE + CONCLUSION (nested) — one TickerDecision per ticker
-    # The per-ticker analysis is itself evidence→reason→conclude inside
-    # TickerDecision. At the portfolio level, the full set of ticker
-    # decisions is the evidence base for the portfolio summary.
+    # The per-ticker analysis is itself reasoning_raw_text→evidence→reason→
+    # conclude inside TickerDecision. At the portfolio level, the full set
+    # of ticker decisions is the evidence base for the portfolio summary.
     tickers: Dict[str, TickerDecision]
 
     # PORTFOLIO-LEVEL CONCLUSION — produced after all ticker decisions exist

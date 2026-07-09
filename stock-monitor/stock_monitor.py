@@ -67,6 +67,52 @@ client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 # re-negotiating the terms on every individual trade.
 # ─────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────
+# REPLACEMENT for sm_call_llm() in stock_monitor.py — Day 25
+#
+# WHAT WAS BROKEN
+# ----------------
+# The old version did:
+#     tier = config.SLM_STAGE_MODELS.get(stage_key, "fast")
+#     if tier == "heavy": ...
+#     else: slm_model = config.SLM_FAST_MODEL
+#
+# This assumed SLM_STAGE_MODELS[stage_key] was a string, "fast" or
+# "heavy" — the OLD two-tier system. But SLM_STAGE_MODELS is now a
+# nested dict: {"primary": {...}, "fallback": {...}}. A dict is never
+# equal to the string "heavy", so the comparison was always False and
+# every single SLM call silently fell through to SLM_FAST_MODEL
+# (phi4-mini) regardless of stage — including Stage 3, where phi4-mini
+# is disqualified for content drift at xxl. This was never caught
+# because USE_SLM has been False throughout the Days 21-24 benchmark
+# work (all of that ran through slm_benchmark.py directly, which reads
+# SLM_STAGE_MODELS correctly — the bug was isolated to this one
+# function in the live pipeline, never exercised until now).
+#
+# WHAT THIS VERSION DOES
+# ------------------------
+# 1. Resolves stage_key from call_type exactly as before.
+# 2. Looks up config.SLM_STAGE_MODELS[stage_key] as the nested dict
+#    it actually is — primary and fallback sub-dicts, each carrying
+#    model, mode, and max_tokens.
+# 3. Attempts the primary model first. If that call returns an
+#    "[LLM_ERROR]" result AND a fallback entry exists for this stage,
+#    attempts the fallback model next.
+# 4. If both fail, or no fallback exists (Stage 2, preprocessing),
+#    returns the failed result as-is. NO cross-provider fallback to
+#    cloud is attempted for SLM-mode calls — decided Day 25.
+#    USE_SLM=True is a genuine sovereignty commitment: a failure here
+#    stays inside the sovereign tier. Existing call sites in
+#    stock_monitor.py already handle a [LLM_ERROR] result gracefully
+#    (they skip that agent for this ticker and continue the run).
+# 5. max_tokens is ALWAYS taken from SLM_STAGE_MODELS[stage_key][...]
+#    ["max_tokens"] when USE_SLM=True — never from whatever max_tokens
+#    the caller passed in (config.STAGE_N_MAX_TOKENS, sized for cloud
+#    models). This prevents an SLM call from being silently capped
+#    below its benchmark-proven schema closure floor (e.g. Stage 1
+#    qwen3.6 needs 2400 tokens minimum — STAGE_1_MAX_TOKENS is 1200).
+# ─────────────────────────────────────────────────────────────
+
 def sm_call_llm(**kwargs):
     """
     Stock Monitor wrapper for call_llm().
@@ -74,12 +120,17 @@ def sm_call_llm(**kwargs):
     This is the only place these values are declared —
     never repeated at call sites.
 
-    SLM routing logic:
-      USE_SLM=False → existing Anthropic routing unchanged
-      USE_SLM=True  → resolves which SLM model to use based on
-                       call_type and SLM_STAGE_MODELS, then routes
-                       to Ollama sovereign tier. USE_LIVE_AGENTS
-                       is implied True — SLM calls are always live.
+    SLM routing logic (Day 25 fix):
+      USE_SLM=False → existing Anthropic routing unchanged, caller's
+                       max_tokens is respected exactly as before.
+      USE_SLM=True  → resolves stage from call_type, reads the nested
+                       primary/fallback dict from SLM_STAGE_MODELS,
+                       attempts primary then fallback (if any) within
+                       the sovereign tier only. Caller's max_tokens is
+                       IGNORED and replaced with the per-stage,
+                       per-model value from SLM_STAGE_MODELS — those
+                       numbers came from real benchmark data, the
+                       caller's number is sized for a cloud model.
 
     Shadow cost computation:
       When USE_SLM=True, computes hypothetical Haiku and Sonnet
@@ -87,93 +138,179 @@ def sm_call_llm(**kwargs):
       Used by run summary comparison table.
     """
 
-    # ── Resolve SLM model if sovereign tier is active ─────────
-    use_slm   = config.USE_SLM
-    slm_model = None
+    use_slm = config.USE_SLM
 
-    if use_slm:
-        # Determine which stage this call belongs to from call_type.
-        # call_type format: "stage1_bull_NVDA", "stage2_contrarian_NVDA",
-        # "stage3_meta_agent", "translator"
-        call_type = kwargs.get("call_type", "")
+    if not use_slm:
+        # ── Existing cloud path — completely unchanged ──────────
+        text, usage = call_llm(
+            **kwargs,
+            use_live_agents=config.USE_LIVE_AGENTS,
+            capture_fixtures=config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES,
+            fixture_dir=config.FIXTURE_DIR,
+            use_slm=False,
+            slm_model=None,
+            ollama_base_url=config.OLLAMA_BASE_URL,
+            ollama_timeout=config.OLLAMA_TIMEOUT,
+            ollama_model_max_ctx=None,
+            ollama_chars_per_token_estimate=config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE,
+            ollama_num_ctx_safety_margin=config.OLLAMA_NUM_CTX_SAFETY_MARGIN,
+            ollama_num_ctx_fallback_max=config.OLLAMA_NUM_CTX_FALLBACK_MAX,
+            ollama_hardware_cap=config.OLLAMA_NUM_CTX_HARDWARE_CAP,
+        )
+        return text, usage
 
-        if call_type.startswith("stage1"):
-            stage_key = "stage1"
-        elif call_type.startswith("stage2"):
-            stage_key = "stage2"
-        elif call_type.startswith("stage3"):
-            stage_key = "stage3"
-        elif call_type.startswith("translator"):
-            stage_key = "translator"
-        else:
-            stage_key = "stage1"  # safe default for unknown call types
+    # ── SLM path — resolve which stage this call belongs to ──────
+    # call_type format: "stage1_bull_NVDA", "stage2_contrarian_NVDA",
+    # "stage3_meta_agent", "translator". No "preprocessing" call_type
+    # exists in the live pipeline yet (Day 25 audit confirmed this) —
+    # the "unknown call type" branch below is a safe default only,
+    # not a path any current code actually takes.
+    call_type = kwargs.get("call_type", "")
 
-        # Look up which tier this stage should use
-        tier = config.SLM_STAGE_MODELS.get(stage_key, "fast")
+    if call_type.startswith("stage1"):
+        stage_key = "stage1"
+    elif call_type.startswith("stage2"):
+        stage_key = "stage2"
+    elif call_type.startswith("stage3"):
+        stage_key = "stage3"
+    elif call_type.startswith("translator"):
+        stage_key = "translator"
+    else:
+        # Safe default for any call_type not matching the four known
+        # prefixes above — Stage 1 is the least risky default because
+        # it has both a primary and a fallback defined.
+        stage_key = "stage1"
 
-        # Resolve tier to actual model tag
-        if tier == "heavy":
-            # Stage 3 gets the dedicated heavy Stage 3 model
-            if stage_key == "stage3":
-                slm_model = config.SLM_HEAVY_MODEL_STAGE3
-            else:
-                slm_model = config.SLM_HEAVY_MODEL
-        else:
-            # fast tier — phi4-mini for all fast-tier stages
-            slm_model = config.SLM_FAST_MODEL
+    stage_cfg = config.SLM_STAGE_MODELS.get(stage_key)
 
-    # Look up this specific model's real context ceiling — None if the
-    # model isn't in the registry, which makes _call_ollama() fall back
-    # to OLLAMA_NUM_CTX_FALLBACK_MAX rather than guessing.
-    model_max_ctx = config.OLLAMA_MODEL_MAX_CTX.get(slm_model) if use_slm else None
+    if stage_cfg is None:
+        # Genuinely no entry for this stage at all — cannot proceed
+        # under SLM. This should never happen for stage1/2/3/translator
+        # since all four are defined; only reachable if a new call_type
+        # prefix is introduced without updating SLM_STAGE_MODELS.
+        msg = format_warning(
+            "ERROR", "stock_monitor.py", "sm_call_llm()",
+            f"USE_SLM=True but no SLM_STAGE_MODELS entry exists for "
+            f"stage_key '{stage_key}' (call_type='{call_type}')",
+            "add an entry for this stage to SLM_STAGE_MODELS in config.py, "
+            "or check call_type prefix matches one of stage1/stage2/stage3/translator"
+        )
+        print(msg)
+        empty_usage = {
+            "input_tokens": 0, "output_tokens": 0, "model_used": None,
+            "fallback_used": False, "stop_reason": "error", "retried": False,
+            "truncated": False, "retry_budget": None, "thinking_tokens": 0,
+            "prompt_text": kwargs.get("prompt", ""), "warnings": [msg],
+        }
+        return f"[LLM_ERROR] No SLM routing defined for stage '{stage_key}'.", empty_usage
 
-    # ── Make the call ──────────────────────────────────────────
-    text, usage = call_llm(
-        **kwargs,
-        use_live_agents=True if use_slm else config.USE_LIVE_AGENTS,
-        capture_fixtures=config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES,
-        fixture_dir=config.FIXTURE_DIR,
-        use_slm=use_slm,
-        slm_model=slm_model,
-        ollama_base_url=config.OLLAMA_BASE_URL,
-        ollama_timeout=config.OLLAMA_TIMEOUT,
-        ollama_model_max_ctx=model_max_ctx,
-        ollama_chars_per_token_estimate=config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE,
-        ollama_num_ctx_safety_margin=config.OLLAMA_NUM_CTX_SAFETY_MARGIN,
-        ollama_num_ctx_fallback_max=config.OLLAMA_NUM_CTX_FALLBACK_MAX,
-        ollama_hardware_cap=config.OLLAMA_NUM_CTX_HARDWARE_CAP,
-    )
+    primary_cfg  = stage_cfg.get("primary")
+    fallback_cfg = stage_cfg.get("fallback")  # may be None — e.g. Stage 2
+
+    def _attempt_slm(model_cfg):
+        """
+        Makes one SLM attempt using the given model_cfg dict
+        ({"model": ..., "mode": ..., "max_tokens": ...}).
+        Returns (text, usage) exactly as call_llm() would.
+        model_max_ctx is looked up fresh per model — different
+        primary/fallback models can have different real ceilings.
+        """
+        slm_model     = model_cfg["model"]
+        slm_max_tokens = model_cfg["max_tokens"]
+        model_max_ctx = config.OLLAMA_MODEL_MAX_CTX.get(slm_model)
+
+        # kwargs may contain 'max_tokens' from the caller — pop it so
+        # our override below is the only max_tokens value passed through.
+        call_kwargs = dict(kwargs)
+        call_kwargs.pop("max_tokens", None)
+
+        return call_llm(
+            **call_kwargs,
+            max_tokens=slm_max_tokens,   # ALWAYS the benchmark-derived value, never the caller's
+            use_live_agents=True,        # SLM calls are always live — no fixture path for SLM
+            capture_fixtures=config.CAPTURE_LIVE_AGENTS_FOR_FIXTURES,
+            fixture_dir=config.FIXTURE_DIR,
+            use_slm=True,
+            slm_model=slm_model,
+            ollama_base_url=config.OLLAMA_BASE_URL,
+            ollama_timeout=config.OLLAMA_TIMEOUT,
+            ollama_model_max_ctx=model_max_ctx,
+            ollama_chars_per_token_estimate=config.OLLAMA_CHARS_PER_TOKEN_ESTIMATE,
+            ollama_num_ctx_safety_margin=config.OLLAMA_NUM_CTX_SAFETY_MARGIN,
+            ollama_num_ctx_fallback_max=config.OLLAMA_NUM_CTX_FALLBACK_MAX,
+            ollama_hardware_cap=config.OLLAMA_NUM_CTX_HARDWARE_CAP,
+        )
+
+    # ── Attempt primary ───────────────────────────────────────────
+    text, usage = _attempt_slm(primary_cfg)
+
+    # ── Attempt fallback only if primary failed AND a fallback exists ──
+    # A fallback of None (Stage 2, preprocessing) means: fail gracefully,
+    # do not attempt anything further — sovereignty decision, Day 25.
+    if text.startswith("[LLM_ERROR]") and fallback_cfg is not None:
+        msg = format_warning(
+            "WARN", "stock_monitor.py", "sm_call_llm()",
+            f"SLM primary '{primary_cfg['model']}' failed for stage "
+            f"'{stage_key}' (call_type='{call_type}') — attempting "
+            f"SLM fallback '{fallback_cfg['model']}'",
+            "check Ollama is running and the primary model is pulled: "
+            "ollama list"
+        )
+        print(msg)
+        fallback_text, fallback_usage = _attempt_slm(fallback_cfg)
+        fallback_usage.setdefault("warnings", [])
+        fallback_usage["warnings"] = usage.get("warnings", []) + fallback_usage["warnings"] + [msg]
+        fallback_usage["fallback_used"] = True
+        text, usage = fallback_text, fallback_usage
+
+    elif text.startswith("[LLM_ERROR]") and fallback_cfg is None:
+        # No fallback exists for this stage — fail gracefully, exactly
+        # as decided Day 25. Log clearly that this was a deliberate
+        # no-fallback stop, not a missed opportunity to recover.
+        msg = format_warning(
+            "WARN", "stock_monitor.py", "sm_call_llm()",
+            f"SLM primary '{primary_cfg['model']}' failed for stage "
+            f"'{stage_key}' (call_type='{call_type}') — no SLM fallback "
+            f"configured for this stage, failing gracefully per Day 25 "
+            f"sovereignty decision. No cloud fallback attempted.",
+            "if this stage needs resilience, a sovereign SLM fallback "
+            "must be benchmarked and added to SLM_STAGE_MODELS — see "
+            "Section 10, 'sovereign Stage 2 fallback hunt'"
+        )
+        print(msg)
+        usage.setdefault("warnings", [])
+        usage["warnings"] = usage["warnings"] + [msg]
 
     # ── Shadow cost computation ────────────────────────────────
-    # When SLM is active, actual cost is $0.00.
-    # Compute what this call would have cost on Haiku and Sonnet
-    # using the actual token counts from the SLM response.
-    # Added to usage dict so run summary can display the comparison table.
-    if use_slm:
-        input_tokens  = usage.get("input_tokens", 0)
-        output_tokens = usage.get("output_tokens", 0)
+    # Actual cost is $0.00 regardless of primary or fallback model used.
+    # Compute what this call would have cost on Haiku and Sonnet using
+    # the actual token counts from whichever SLM call produced this result.
+    input_tokens  = usage.get("input_tokens", 0)
+    output_tokens = usage.get("output_tokens", 0)
 
-        haiku_pricing  = config.MODEL_PRICING.get(
-            config.SHADOW_COST_HAIKU_MODEL, {"input": 0, "output": 0}
-        )
-        sonnet_pricing = config.MODEL_PRICING.get(
-            config.SHADOW_COST_SONNET_MODEL, {"input": 0, "output": 0}
-        )
+    haiku_pricing  = config.MODEL_PRICING.get(
+        config.SHADOW_COST_HAIKU_MODEL, {"input": 0, "output": 0}
+    )
+    sonnet_pricing = config.MODEL_PRICING.get(
+        config.SHADOW_COST_SONNET_MODEL, {"input": 0, "output": 0}
+    )
 
-        # Per-million-token pricing — divide by 1,000,000 to get per-token rate
-        usage["shadow_cost_haiku_usd"] = round(
-            (input_tokens  * haiku_pricing["input"]  / 1_000_000) +
-            (output_tokens * haiku_pricing["output"] / 1_000_000),
-            6
-        )
-        usage["shadow_cost_sonnet_usd"] = round(
-            (input_tokens  * sonnet_pricing["input"]  / 1_000_000) +
-            (output_tokens * sonnet_pricing["output"] / 1_000_000),
-            6
-        )
+    usage["shadow_cost_haiku_usd"] = round(
+        (input_tokens  * haiku_pricing["input"]  / 1_000_000) +
+        (output_tokens * haiku_pricing["output"] / 1_000_000),
+        6
+    )
+    usage["shadow_cost_sonnet_usd"] = round(
+        (input_tokens  * sonnet_pricing["input"]  / 1_000_000) +
+        (output_tokens * sonnet_pricing["output"] / 1_000_000),
+        6
+    )
 
-        # Store the SLM model name used so run summary can display it
-        usage["slm_model_used"] = slm_model
+    # slm_model_used reflects whichever model actually produced this
+    # result — primary if it succeeded, fallback if primary failed
+    # and fallback succeeded, primary's name if both failed (for
+    # diagnostic visibility into what was attempted first).
+    usage["slm_model_used"] = usage.get("model_used") or primary_cfg["model"]
 
     return text, usage
 
@@ -1133,7 +1270,8 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
     # and FIXTURE_DIR from config — call site stays clean
     text, usage = sm_call_llm(
         prompt=(
-            f"Analyse this data package and return your JSON response.\n\n"
+            f"TARGET TICKER FOR THIS ANALYSIS: {ticker}\n"
+            f"Reason about {ticker} only. Do not substitute any other ticker.\n\n"
             f"{data_package}"
         ),
         system=system_prompt,
@@ -1161,6 +1299,7 @@ def run_stage1_agent(agent_name, system_prompt, data_package,
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
         prompt_text=usage.get("prompt_text"),
+        ticker=ticker,
     )
 
     # Detect LLM error — graceful degradation, skip this agent
@@ -1293,6 +1432,7 @@ def run_contrarian(stage1_outputs, data_package, ticker,
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
         prompt_text=usage.get("prompt_text"),
+        ticker=ticker,
     )
 
     if text.startswith("[LLM_ERROR]"):
@@ -1411,6 +1551,7 @@ def run_meta_agent(all_ticker_outputs, all_price_data,
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
         prompt_text=usage.get("prompt_text"),
+        ticker="portfolio",
     )
 
     if text.startswith("[LLM_ERROR]"):
@@ -1551,6 +1692,7 @@ def run_translator(meta_output, run_id):
         truncated=usage.get("truncated", False),
         retry_budget=usage.get("retry_budget"),
         prompt_text=usage.get("prompt_text"),
+        ticker="portfolio",
     )
 
     if text.startswith("[LLM_ERROR]"):
@@ -1645,9 +1787,12 @@ def main():
     database.start_run(
     run_id,
     data_mode=data_mode,
-    slm_model=config.SLM_FAST_MODEL if config.USE_SLM and config.SLM_MODE == "fast"
-              else config.SLM_HEAVY_MODEL if config.USE_SLM and config.SLM_MODE == "heavy"
-              else None,
+    # A single run now spans up to four different SLM models across
+    # Stage 1/2/3/Translator — one string can't honestly represent
+    # that. run_log.slm_model is now just a sovereignty flag; the real
+    # per-call detail lives in llm_calls.model_used, already logged
+    # correctly per call by write_llm_call(). Day 25.
+    slm_model="sovereign (per-stage, see llm_calls table)" if config.USE_SLM else None,
 )
 
     run_start_time = time.time()

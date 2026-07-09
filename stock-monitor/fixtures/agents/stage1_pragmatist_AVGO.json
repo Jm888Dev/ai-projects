@@ -1,18 +1,14 @@
-```json
 {
   "persona": "pragmatist",
   "ticker": "AVGO",
   "direction": "HOLD",
-  "confidence": 2,
-  "statistical_anchor": "AVGO is down 0.22% on normal volume (1.0x 30-day average) while positioned 18.2% below its 10-day high ($481.57) and 3.6% below its 50-day MA ($408.04). The 3-day return is +2.17% but the 5-day return collapses to +0.45%, indicating momentum is decelerating. No streak data and no clear directional conviction in today's price action.",
-  "volume_assessment": "Volume is at 1.0x 30-day average on a -0.22% down day — this is noise, not conviction. The move lacks the elevated volume signature required to confirm directional intent. Normal volume on a down day suggests indifference, not selling pressure. The tape is thin relative to the magnitude of the recent pullback from $481.57.",
-  "trend_assessment": "AVGO is in a weakening short-term trend. Price is 18.2% below the 10-day high and 3.6% below the 50-day MA ($408.04), signaling a loss of upside momentum. The 3-day return (+2.17%) masks deteriorating 5-day momentum (+0.45%). The position in range is 0.2 (near the low), confirming the recent pullback has been material. The streak counter at 0 sessions means no consecutive up or down closes — the stock is oscillating without direction.",
-  "regime_context": "Fed is data-dependent and paused; 10Y UST stable at 4.2%; VIX at 16.15 (normal regime). In a stable rate environment, semiconductor infrastructure plays like AVGO typically trade on earnings and custom chip win announcements, not macro tailwinds. The lack of new AI research announcements or hyperscaler CapEx guidance this week removes the fundamental catalyst that would drive the decoupling thesis narrative. Stable macro = reliance on company-specific catalysts, which are absent.",
+  "confidence": 3,
+  "statistical_anchor": "Price at $388.69 (10-day high, range position 1.0) sits 4.4% below the 50-day MA ($406.75), while today’s +5.66% move occurred on only 1.08x average volume with a streak reset to zero, indicating short-term momentum exhaustion.",
+  "volume_assessment": "Normal tape (1.08x 30-day average) lacks conviction for trend continuation; statistically, large percentage gains on flat volume typically precede consolidation or mean reversion rather than sustained directional moves.",
+  "trend_assessment": "Price is at the absolute top of its recent range but remains structurally below the 50-day MA, signaling short-term momentum exhaustion within a broader corrective structure; the zero-session streak confirms a pause in directional pressure.",
+  "regime_context": "Normal volatility (VIX ~16.9) and stable rate environment historically compress extended moves in semiconductor equities, favoring range-bound behavior over trend continuation until volume expansion or MA breaks confirm a regime shift.",
   "watch_items": [
-    "Break below $372.10 (10-day low) — would signal breakdown below recent support and warrant reassessment to REDUCE",
-    "Volume spike above 1.5x 30-day average on directional move — would confirm conviction and clarify whether momentum is resuming or exhausting",
-    "AVGO vs NVDA divergence signal — if NVDA falls while AVGO stays flat or declines, thesis decoupling narrative loses credibility; monitor for thesis invalidation",
-    "Custom chip design win announcement or hyperscaler contract renewal — would be the only catalyst capable of re-establishing conviction in the current data vacuum"
+    "Price closes below $380 on >1.2x volume (confirms short-term reversal probability)",
+    "Break and hold above $406.75 (50-day MA) with >1.3x volume (confirms trend continuation probability)"
   ]
 }
-```
