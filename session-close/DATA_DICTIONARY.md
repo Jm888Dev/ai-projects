@@ -18,7 +18,7 @@ Reference table. Seeded at initialise_db(). Never updated mid-run.
 | provider | TEXT DEFAULT anthropic | anthropic / ollama |
 | tier | TEXT | haiku / sonnet / opus / slm |
 
-Seeded: claude-haiku-4-5-20251001, claude-sonnet-4-6, claude-opus-4-8, phi4-mini, gemma4:e4b, qwen3.6:35b-a3b, gemma4:26b
+Seeded: claude-haiku-4-5-20251001, claude-sonnet-5, claude-opus-4-8, phi4-mini, gemma4:e4b, qwen3.6:35b-a3b, gemma4:26b
 
 ---
 
@@ -290,12 +290,12 @@ Fixed Day 25 — see §8.
 ### Token budgets (cloud path)
 | Constant | Value |
 |---|---|
-| STAGE_1_MAX_TOKENS | 1200 |
-| STAGE_2_MAX_TOKENS | 2000 |
-| STAGE_3_MAX_TOKENS | 4000 |
+| STAGE_1_MAX_TOKENS | 2500 |
+| STAGE_2_MAX_TOKENS | 4000 |
+| STAGE_3_MAX_TOKENS | 6000 |
 | TRANSLATOR_MAX_TOKENS | 2500 |
 
-**Note (Day 25):** these govern the cloud (Anthropic) path only.
+**Note (Day 27):** these govern the cloud (Anthropic) path only. Raised Day 27 from live run data: Stage 1 Black Swan failed at 1800, Contrarian failed at 3000, Stage 3 resolved at 6000.
 When USE_SLM=True, sm_call_llm() overrides max_tokens entirely with
 the per-stage SLM_STAGE_MODELS value — never these cloud-sized numbers.
 
@@ -303,7 +303,7 @@ the per-stage SLM_STAGE_MODELS value — never these cloud-sized numbers.
 | Model | Input | Output |
 |---|---|---|
 | claude-haiku-4-5-20251001 | $1.00 | $5.00 |
-| claude-sonnet-4-6 | $3.00 | $15.00 |
+| claude-sonnet-5 | $3.00 | $15.00 |
 | claude-opus-4-8 | $5.00 | $25.00 |
 | All Ollama SLMs | $0.00 | $0.00 |
 Computed at insert time via compute_call_cost() — stored permanently in llm_calls.cost_usd so historical data stays accurate even if pricing changes.
@@ -382,13 +382,17 @@ Six production Pydantic models. Field order: **identity → reasoning_raw_text
 |---|---|
 | format_warning(severity, file, function, description, fix) | Pipe-delimited warning |
 | _call_ollama(...) | raw requests.post() to Ollama |
-| call_llm(...) | Universal Claude/Ollama wrapper |
+| call_llm(..., output_schema=None) | Universal Claude/Ollama wrapper. When output_schema is not None and use_slm=False, uses Anthropic tool_use: adds tools + tool_choice, extracts tool_block.input, serialises to json.dumps() so extract_json() downstream is unchanged. Added Day 27. |
 | extract_json(raw) | Extracts clean JSON from model response. On JSONDecodeError attempts json-repair fallback before returning failure — handles missing string-open quotes and other common SLM formatting errors. (json-repair library added Day 26.) |
 | update_market_history(tickers, use_live) | Delta pull from yfinance |
 | save_price_fixtures(price_data, fixture_path, capture) | Updates fixture JSON |
 | send_email_alert(subject, body, env_path, project_tag) | SMTP via Gmail |
 
-### stock_monitor.py — sm_call_llm() — REWRITTEN Day 25
+### stock_monitor.py — _resolve_schema() — ADDED Day 27
+
+| _resolve_schema(call_type) | Maps call_type prefix to Pydantic schema's .model_json_schema() for Anthropic tool_use. Returns None for Translator and unknowns (plain text path). Lives in stock_monitor.py — not shared/ — to preserve shared/never-imports-project-config rule. |
+
+### stock_monitor.py — sm_call_llm() — REWRITTEN Day 25, UPDATED Day 27
 Resolves stage_key from call_type (stage1/stage2/stage3/translator),
 reads the nested `SLM_STAGE_MODELS[stage_key]` dict correctly (primary
 + fallback sub-dicts, each with model/mode/max_tokens). Attempts primary,
@@ -529,4 +533,4 @@ Queued as Forward Queue item 9.
 
 ---
 
-*Last updated: Day 26*
+*Last updated: Day 27*

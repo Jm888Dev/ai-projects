@@ -41,6 +41,18 @@ from prompts.analyst_persona import (
     STOCK_META_AGENT_SYSTEM_PROMPT,
     TRANSLATOR_SYSTEM_PROMPT,
 )
+from prompts.schemas import (
+    # Imported here so sm_call_llm() can resolve the correct output schema
+    # for each call_type and pass it to call_llm()'s tool_use path.
+    # These are the same Pydantic models used by the SLM benchmark harness.
+    # Translator is intentionally absent — it returns plain text, not JSON.
+    BullOutput,
+    BearOutput,
+    BlackSwanOutput,
+    PragmatistOutput,
+    ContrarianOutput,
+    MetaAgentOutput,
+)
 import config
 import database
 import feeds
@@ -113,6 +125,57 @@ client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 #    qwen3.6 needs 2400 tokens minimum — STAGE_1_MAX_TOKENS is 1200).
 # ─────────────────────────────────────────────────────────────
 
+
+def _resolve_schema(call_type):
+    """
+    Maps a call_type prefix to the correct Pydantic schema's JSON Schema dict
+    for Anthropic tool_use wiring. Returns None for plain-text agents
+    (Translator) and any unrecognised call_type.
+
+    call_type format examples:
+      "stage1_bull_NVDA"         → BullOutput
+      "stage1_bear_AVGO"         → BearOutput
+      "stage1_black_swan_LITE"   → BlackSwanOutput
+      "stage1_pragmatist_TSM"    → PragmatistOutput
+      "stage2_contrarian_NVDA"   → ContrarianOutput
+      "stage3_meta_agent"        → MetaAgentOutput
+      "translator"               → None (plain text, no schema)
+
+    WHY THIS FUNCTION EXISTS HERE AND NOT IN shared/utils.py:
+    shared/utils.py must remain config-free and project-agnostic — it cannot
+    import prompts/schemas.py (a Stock Monitor module). The schema is resolved
+    here, in the project wrapper, and passed down as a raw dict. call_llm()
+    receives and uses it without knowing or caring which project it came from.
+    This is the same wrapper pattern as config injection: one decision point
+    here, zero config in shared code.
+
+    WHY .model_json_schema() AND NOT A CACHED MODULE-LEVEL DICT:
+    Pydantic's .model_json_schema() is a classmethod that runs at call time.
+    It is lightweight (pure Python dict construction, no IO). Caching it
+    would save microseconds while adding state to worry about — not worth it.
+    The schema is also small enough that JSON-serializing it on each cloud
+    call is negligible compared to the API round-trip.
+    """
+    # Prefixes are all distinct: "stage1_bull" (stage1_bu), "stage1_bear"
+    # (stage1_be), "stage1_black_swan" (stage1_bl), "stage1_pragmatist"
+    # (stage1_pr) — no ambiguity, no ordering dependency. Listed alphabetically.
+    if call_type.startswith("stage1_bull"):
+        return BullOutput.model_json_schema()
+    elif call_type.startswith("stage1_bear"):
+        return BearOutput.model_json_schema()
+    elif call_type.startswith("stage1_black_swan"):
+        return BlackSwanOutput.model_json_schema()
+    elif call_type.startswith("stage1_pragmatist"):
+        return PragmatistOutput.model_json_schema()
+    elif call_type.startswith("stage2"):
+        return ContrarianOutput.model_json_schema()
+    elif call_type.startswith("stage3"):
+        return MetaAgentOutput.model_json_schema()
+    else:
+        # Translator, unrecognised types: plain text path, no schema.
+        return None
+
+
 def sm_call_llm(**kwargs):
     """
     Stock Monitor wrapper for call_llm().
@@ -121,8 +184,14 @@ def sm_call_llm(**kwargs):
     never repeated at call sites.
 
     SLM routing logic (Day 25 fix):
-      USE_SLM=False → existing Anthropic routing unchanged, caller's
-                       max_tokens is respected exactly as before.
+       USE_SLM=False → Anthropic routing with tool_use schema enforcement.
+                       _resolve_schema(call_type) maps the call to its
+                       Pydantic output contract; the schema is passed to
+                       call_llm() as output_schema, forcing structured
+                       output via Anthropic's tool_use mechanism.
+                       Translator and unknowns return None → plain text
+                       path, no schema enforcement. caller's max_tokens
+                       is respected exactly as before.
       USE_SLM=True  → resolves stage from call_type, reads the nested
                        primary/fallback dict from SLM_STAGE_MODELS,
                        attempts primary then fallback (if any) within
@@ -141,7 +210,15 @@ def sm_call_llm(**kwargs):
     use_slm = config.USE_SLM
 
     if not use_slm:
-        # ── Existing cloud path — completely unchanged ──────────
+        # ── Cloud path — Anthropic API with tool_use schema enforcement ──
+        # _resolve_schema() maps call_type → JSON Schema dict for the correct
+        # Pydantic model. call_llm() uses this to wire Anthropic tool_use,
+        # which is the cloud equivalent of Ollama's FSM schema enforcement.
+        # Returns None for Translator (plain text) and unknown call_types —
+        # call_llm() falls back to the plain-text path when output_schema=None.
+        call_type = kwargs.get("call_type", "")
+        output_schema = _resolve_schema(call_type)
+
         text, usage = call_llm(
             **kwargs,
             use_live_agents=config.USE_LIVE_AGENTS,
@@ -156,6 +233,7 @@ def sm_call_llm(**kwargs):
             ollama_num_ctx_safety_margin=config.OLLAMA_NUM_CTX_SAFETY_MARGIN,
             ollama_num_ctx_fallback_max=config.OLLAMA_NUM_CTX_FALLBACK_MAX,
             ollama_hardware_cap=config.OLLAMA_NUM_CTX_HARDWARE_CAP,
+            output_schema=output_schema,
         )
         return text, usage
 
@@ -2060,7 +2138,6 @@ def main():
                   f", {feed_new} new headlines stored")
         print()
         print(f"  {'Call type':<28} {'Model':<10} {'In':>7} {'Out':>7} {'Cost':>8} {'Calls':>5}")
-        print(f"  {'─'*28} {'─'*10} {'─'*7} {'─'*7} {'─'*8} {'─'*5}")
         for r in call_rows:
             print(
                 f"  {r['call_type']:<28} "

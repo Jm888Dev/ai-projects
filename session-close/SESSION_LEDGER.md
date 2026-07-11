@@ -37,3 +37,4 @@ Full narrative for each day lives in the Day N Summary in Git.
 ---
 
 *Full narrative per day in Day N Summary files (Git). Only most recent Day Summary in Project Knowledge.*
+| 27 | Anthropic tool-use wiring (LLM path): `output_schema` param in `call_llm()`, `_resolve_schema()` + schema imports in `stock_monitor.py`. GROUNDING RULE blocks removed from 4 Stage 1 prompts. Duplicate `USE_SLM` removed from config. `_SONNET` → `claude-sonnet-5`. Cloud token budgets raised: Stage1 1200→2500, Stage2 2000→4000, Stage3 4000→6000. Zero-truncation live run confirmed (770s). | Anthropic tool_use is cloud FSM equivalent — tool_block.input is parsed Python dict; serialise back to JSON string for interface preservation. Cost tracker counts only final-call tokens — retries uncounted (Anthropic billed ~$1 vs $0.55 reported). Cowork bash has git access within mounted folder scope only. | Ask before reading any file — explain need first. Show-don't-do: diffs shown, Mack applies. |

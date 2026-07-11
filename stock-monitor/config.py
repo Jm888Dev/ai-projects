@@ -30,13 +30,13 @@ from pathlib import Path  # builds fixture and env paths for shared/utils.py wra
 # from fixtures/normal_day.json.
 # False = fixture prices — zero cost, instant, no network needed
 # True  = live yfinance fetch — real prices, real session
-USE_LIVE_DATA = True
+USE_LIVE_DATA = False
 
 # USE_LIVE_AGENTS controls whether agents call the Claude API
 # or load pre-captured outputs from fixtures/agents/.
 # False = fixture agents — zero API cost, instant, deterministic
 # True  = live Claude API calls — real reasoning, real cost
-USE_LIVE_AGENTS = False
+USE_LIVE_AGENTS = True
 
 # CAPTURE_LIVE_DATA_FOR_FIXTURES controls whether a live price
 # fetch overwrites fixtures/normal_day.json.
@@ -72,7 +72,7 @@ DEV_MODE = True
 # ── SIX-AGENT MODEL ROUTING ────────────────────────────────
 # Model constants — do not change these
 _HAIKU  = "claude-haiku-4-5-20251001"
-_SONNET = "claude-sonnet-4-6"
+_SONNET = "claude-sonnet-5"
 _OPUS   = "claude-opus-4-8"
 
 # Stage routing — respects DEV_MODE
@@ -100,9 +100,9 @@ ANALYST_MODEL = _SONNET
 # Raised after Day 10 first run — Black Swan, Pragmatist, and
 # Contrarian were consistently hitting the ceiling and triggering
 # retries. Higher budgets eliminate retries and reduce runtime.
-STAGE_1_MAX_TOKENS    = 1200   # was 800 — Black Swan and Pragmatist need room
-STAGE_2_MAX_TOKENS    = 2000   # was 1200 — Contrarian reads four inputs
-STAGE_3_MAX_TOKENS    = 4000   # was 1500 — Meta-Agent covers eight tickers
+STAGE_1_MAX_TOKENS    = 2500   # was 1200 — Black Swan consistently truncates at 1800 (Day 27 live run)
+STAGE_2_MAX_TOKENS    = 4000   # was 2000 — Contrarian truncates at 3000 (Day 27 live run)
+STAGE_3_MAX_TOKENS    = 6000   # was 4000 — Meta-Agent resolves at 6000 (Day 27 live run confirmed)
 TRANSLATOR_MAX_TOKENS = 2500   # was 1200 — needs room for 7-ticker briefing
 
 # Kept for backward compatibility
@@ -148,7 +148,7 @@ DB_PATH = "prices.db"
 # Source: Anthropic public rates, June 2026
 MODEL_PRICING = {
     "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
-    "claude-sonnet-4-6":         {"input": 3.00, "output": 15.00},
+    "claude-sonnet-5":           {"input": 3.00, "output": 15.00},
     "claude-opus-4-8":           {"input": 5.00, "output": 25.00},
 }
 
@@ -632,21 +632,8 @@ ENV_PATH           = Path(__file__).parent / ".env"
 # Master SLM switch
 # False = use Anthropic API tiers (existing behaviour, unchanged)
 # True  = route all agent calls to local Ollama (sovereign, $0.00)
-USE_SLM  = False
-
-
-# Master SLM switch
-# False = use Anthropic API tiers (existing behaviour, unchanged)
-# True  = route all agent calls to local Ollama (sovereign, $0.00)
-# When True, USE_LIVE_AGENTS is implied True regardless of its own value.
-# SLM_STAGE_MODELS (below) is the sole routing source of truth — the old
-# two-tier fast/heavy system (SLM_MODE, SLM_FAST_MODEL, SLM_HEAVY_MODEL,
-# SLM_HEAVY_MODEL_STAGE3) was deleted Day 25. It was dead code that had
-# silently caused every SLM call to route to phi4-mini regardless of
-# stage — see sm_call_llm() history in stock_monitor.py for the full
-# story. Confirmed via full-codebase search: nothing else referenced
-# these four names, so deletion was safe with no other call sites to fix.
 USE_SLM  = True
+
 
 # Per-stage SLM model assignment
 # Controls which SLM model handles each pipeline stage.
@@ -871,7 +858,7 @@ MODEL_PRICING.update({
 # These two model keys are the reference points for shadow cost rows
 # in the run summary comparison table.
 SHADOW_COST_HAIKU_MODEL  = "claude-haiku-4-5-20251001"
-SHADOW_COST_SONNET_MODEL = "claude-sonnet-4-6"
+SHADOW_COST_SONNET_MODEL = "claude-sonnet-5"
 
 # ─────────────────────────────────────────────────────────────
 # INTELLIGENCE FEEDS — STAGE 1

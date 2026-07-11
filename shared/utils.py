@@ -263,7 +263,8 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
              ollama_chars_per_token_estimate=4,
              ollama_num_ctx_safety_margin=2048,
              ollama_num_ctx_fallback_max=8192,
-             ollama_hardware_cap=32000):
+             ollama_hardware_cap=32000,
+             output_schema=None):
     """
     Universal wrapper for all Claude API calls across both projects.
 
@@ -271,6 +272,15 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
     usage_dict contains: input_tokens, output_tokens, model_used,
     fallback_used, stop_reason, retried, truncated, retry_budget,
     prompt_text, warnings.
+
+    output_schema: optional JSON Schema dict (e.g. from a Pydantic model's
+    .model_json_schema()). When provided and use_slm=False, uses Anthropic
+    tool_use to force structured output matching the schema. The tool_use
+    response is serialized back to a JSON string so all downstream callers
+    (extract_json) remain unchanged — they don't need to know whether
+    structure came from Ollama's FSM or Anthropic's tool_use mechanism.
+    When None (default), the existing plain-text path is used unchanged.
+    Callers should pass None for agents that return plain text (Translator).
     """
     warnings = []
 
@@ -473,7 +483,28 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
 
     def _attempt(mdl, token_budget):
         kw = {**call_kwargs, "max_tokens": token_budget}
+
+        if output_schema:
+            # Tool-use path — Anthropic's equivalent of Ollama's FSM schema
+            # enforcement. We define one tool whose input_schema is the Pydantic
+            # model's JSON Schema, then force the model to always call it via
+            # tool_choice. This guarantees structured output without relying on
+            # prompt instructions alone — the API rejects responses that don't
+            # conform to the schema before we ever see them.
+            #
+            # tool_choice={"type": "tool", "name": ...} is the force-call
+            # equivalent of Ollama's format parameter — the model MUST use
+            # this tool, it cannot respond with plain text instead.
+            tool_name = "submit_analysis"
+            kw["tools"] = [{
+                "name":         tool_name,
+                "description":  "Submit the structured analysis output for this agent.",
+                "input_schema": output_schema,
+            }]
+            kw["tool_choice"] = {"type": "tool", "name": tool_name}
+
         response = client.messages.create(model=mdl, **kw)
+
         usage = {
             "input_tokens":  response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
@@ -481,7 +512,30 @@ def call_llm(prompt, system=None, model=None, max_tokens=1024,
             "fallback_used": False,
             "stop_reason":   response.stop_reason,
         }
-        return response.content[0].text, usage
+
+        if output_schema:
+            # Extract the structured dict from the tool_use content block.
+            # tool_block.input is already a parsed Python dict — we serialize
+            # it back to a JSON string so all downstream callers (extract_json)
+            # remain unchanged. They call extract_json(text) as always and get
+            # the same parsed dict back — the cloud and SLM paths are now
+            # interface-identical from the caller's perspective.
+            tool_block = next(
+                (b for b in response.content if b.type == "tool_use"), None
+            )
+            if tool_block:
+                text = json.dumps(tool_block.input)
+            else:
+                # No tool_use block in response — model may have been truncated
+                # before completing the tool call (stop_reason will be
+                # "max_tokens"). Return empty string so the existing truncation
+                # retry logic can fire and re-issue the tool-use call.
+                text = ""
+        else:
+            # Plain text path — unchanged from the original implementation.
+            text = response.content[0].text
+
+        return text, usage
 
     text  = None
     usage = None
